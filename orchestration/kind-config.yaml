@@ -1,0 +1,78 @@
+# orchestration/kind-config.yaml
+# Rendered at cluster creation via envsubst:
+#   DAGS_PATH=$(pwd)/dags JOBS_ROOT=$(pwd)/../jobs \
+#     envsubst < kind-config.yaml | kind create cluster --name airflow --config -
+#
+# Required env vars:
+#   DAGS_PATH  — absolute path to orchestration/dags/ on the host
+#   JOBS_ROOT  — absolute path to jobs/ on the host
+#
+# Node topology:
+#   control-plane         — k8s control plane only
+#   airflow-core          — scheduler + webserver + celery worker + redis + postgres
+#   airflow-kube-worker   — ephemeral KubernetesExecutor task pods only (tainted)
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+
+# ── Registry mirror ───────────────────────────────────────────────────────────
+# Redirects localhost:5001 pulls to kind-registry:5000 inside the Docker bridge.
+# Without this KinD nodes cannot resolve localhost:5001.
+containerdConfigPatches:
+- |-
+  [plugins."io.containerd.grpc.v1.cri".registry]
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
+      [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5001"]
+        endpoint = ["http://kind-registry:5000"]
+
+nodes:
+
+# ── Control plane ─────────────────────────────────────────────────────────────
+- role: control-plane
+  image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 # later versions don't work on M2 silicon chips
+
+# ── Airflow core node ─────────────────────────────────────────────────────────
+# Hosts: scheduler, webserver, celery worker, redis, postgres.
+# No taint — Airflow infrastructure pods land here via nodeSelector only.
+- role: worker
+  image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 # later versions don't work on M2 silicon chips
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "role=airflow-core"
+  extraMounts:
+    # DAGs — hot reload. Maps to hostPath PVC in k8s/dags-pvc.yaml.
+  - hostPath: ${DAGS_PATH}
+    containerPath: /dags
+    readOnly: true
+    # Jobs root — optional dev mount for code-only iteration (two-stage pattern).
+  - hostPath: ${JOBS_ROOT}
+    containerPath: /jobs
+    readOnly: true
+  - hostPath: ${GCLOUD_CONFIG}
+    containerPath: /opt/airflow/.config/gcloud
+    readOnly: true
+  - hostPath: ${LOGS_PATH}
+    containerPath: /logs
+    readOnly: false
+
+# ── Airflow kube-worker node ──────────────────────────────────────────────────
+# Hosts: ephemeral KubernetesExecutor task pods only.
+# Tainted so only pods with a matching toleration land here.
+# Mirrors the dedicated task node pool in GKE.
+# - role: worker
+#   image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 # later versions don't work on M2 silicon chips
+#   kubeadmConfigPatches:
+#   - |
+#     kind: JoinConfiguration
+#     nodeRegistration:
+#       kubeletExtraArgs:
+#         node-labels: "role=airflow-kube-worker"
+#       registerWithTaints: "role=airflow-kube-worker:NoSchedule"
+#   extraMounts:
+#     # Jobs root — task pods may volume-mount job code during local dev.
+#   - hostPath: ${JOBS_ROOT}
+#     containerPath: /jobs
+#     readOnly: true

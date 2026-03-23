@@ -1,0 +1,70 @@
+# orchestration/k8s/airflow-variables.yaml
+# ── Airflow shared app config ─────────────────────────────────────────────────
+# Injected into the cluster as the `airflow-env` Kubernetes ConfigMap.
+# Mounted in all Airflow pods via extraEnvFrom configMapRef.
+# Non-sensitive, environment-specific config — committed to git.
+# Sensitive overrides go in .env.secrets and .env.local instead.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-env
+  namespace: airflow
+data:
+  # --- Standard ---
+  ENV: "development"
+  ENV_SHORT_NAME: "dev"
+  GCP_PROJECT: "passculture-data-ehp"
+  GCP_PROJECT_ID: "passculture-data-ehp"
+  GOOGLE_CLOUD_PROJECT: "passculture-data-ehp"
+  DEPLOYMENT_TAG: "airflow-local"
+  REGION: "europe-west1"
+
+  # --- Paths ---
+  DAG_FOLDER: "/opt/airflow/dags"
+  DBT_TARGET_PATH: "/opt/airflow/data/target"
+
+  # --- Logging ---
+  AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
+  AIRFLOW__WEBSERVER__ALLOW_POD_LOG_READING: "True"
+  AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"
+  AIRFLOW__CORE__HOSTNAME_CALLABLE: "airflow.utils.net:get_host_ip_address"
+  AIRFLOW__CORE__BASE_LOG_FOLDER: "/opt/airflow/logs"
+
+  # --- Connections ---
+  APPLICATIVE_EXTERNAL_CONNECTION_ID: "pc-backend-tst.europe-west1.pcapi-tst-pg-pcapi-tst-eu9-c324f1845dc3a220-replica-big-query-eu1-ro"
+  BIGQUERY_CONNECTION_RECOMMENDATION: "passculture-data-ehp.europe-west1.cloudsql-recommendation-dev-ew1-bq-connection"
+  METABASE_EXTERNAL_CONNECTION_ID: "passculture-data-ehp.europe-west1.cloudsql-metabase-staging-bq-connection"
+
+  # --- Buckets ---
+  DATA_GCS_BUCKET_NAME: "data-bucket-dev"
+  MLFLOW_BUCKET_NAME: "mlflow-bucket-ehp"
+  ML_BUCKET_TEMP: "data-bucket-ml-temp-dev"
+
+  # --- Infra / GCE ---
+  RECOMMENDATION_SQL_INSTANCE: "cloudsql-recommendation-dev-ew1"
+  GCE_SA: "algo-training-dev"
+  GCE_TRAINING_INSTANCE: "algo-training-dev"
+  GCE_NETWORK_ID: "projects/passculture-data-ehp/global/networks/vpc-data-dev"
+  GCE_SUBNETWORK_ID: "projects/passculture-data-ehp/regions/europe-west1/subnetworks/data-dev-private"
+  GCE_VPC_SHARED_HOST_NETWORK_ID: "projects/passculture-host-ehp/global/networks/vpc-host-ehp"
+  GCE_VPC_SHARED_HOST_SUBNETWORK_ID: "projects/passculture-host-ehp/regions/europe-west1/subnetworks/passculture-data-ehp"
+
+  # --- Recommendation API ---
+  DATA_GCP_TEST_POSTGRES_PORT: "5432"
+  SQL_CONNECTION_NAME: "db"
+  SQL_BASE: "db"
+  DB_NAME: "db"
+  SQL_BASE_USER: "postgres"
+  SQL_BASE_SECRET_ID: "cloudsql-recommendation-dev-database-password"
+  SQL_BASE_SECRET_VERSION: "1"
+  API_TOKEN_SECRET_ID: "api-reco-token-dev"
+  API_TOKEN_SECRET_VERSION: "1"
+  AB_TESTING_TABLE: "ab_testing"
+  AB_TESTING_TABLE_EAC: "ab_testing"
+  MODEL_REGION: "europe-west1"
+  ACTIVE_MODEL: "deep_reco_dev"
+  MODEL_NAME_A: "tf_model_reco_dev"
+  MODEL_NAME_B: "deep_reco_dev"
+  MODEL_NAME_C: "MF_reco_dev"
+  CORS_ALLOWED_ORIGIN: "(http://localhost:.*|https://.*.passculture-testing.beta.gouv.fr|https://.*.testing.passculture.team)"

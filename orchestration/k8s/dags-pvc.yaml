@@ -1,0 +1,47 @@
+# orchestration/k8s/dags-pvc.yaml
+# Rendered at apply time via envsubst:
+#   DAGS_PATH=$(pwd)/dags envsubst < k8s/dags-pvc.yaml | kubectl apply -f -
+#
+# Provides hot-reload DAG access to scheduler, webserver and celery worker
+# by mounting the host dags/ directory directly into the pods.
+# The containerPath /dags on the airflow-core KinD node (set in kind-config.yaml)
+# is what the PV hostPath points to — KinD maps host → node → pod.
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: airflow-dags-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""        # ← bypass provisioner
+  hostPath:
+    path: /dags
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: role
+          operator: In
+          values:
+          - airflow-core
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airflow-dags-pvc
+  namespace: airflow
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""        # ← must match PV
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: airflow-dags-pv # ← bind directly to the PV by name

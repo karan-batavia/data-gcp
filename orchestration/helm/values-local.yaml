@@ -1,0 +1,235 @@
+# orchestration/helm/values-local.yaml
+# ── Helm values for local KinD development ───────────────────────────────────
+# Used by: make airflow / make helm-upgrade
+# Overrides the apache-airflow Helm chart defaults for local dev.
+# Secrets and machine-local vars are injected via extraEnvFrom (see airflow-env
+# secret and airflow-env-local secret, built from .env.secrets and .env.local).
+# Non-sensitive shared config lives in k8s/airflow-variables.yaml (ConfigMap).
+
+airflowVersion: "2.11.0"
+
+# ── Executor ──────────────────────────────────────────────────────────────────
+executor: "CeleryExecutor,KubernetesExecutor"
+
+# ── Images ────────────────────────────────────────────────────────────────────
+images:
+  airflow:
+    repository: localhost:5001/airflow-base
+    tag: dev
+    pullPolicy: Always
+  pod_template:
+    pullPolicy: Always
+
+# ── DAGs ──────────────────────────────────────────────────────────────────────
+dags:
+  gitSync:
+    enabled: false
+  persistence:
+    enabled: true
+    existingClaim: airflow-dags-pvc
+
+# ── DB Migration ──────────────────────────────────────────────────────────────
+migrateDatabaseJob:
+  useHelmHooks: false
+  nodeSelector:
+    role: airflow-core
+
+# ── User Creation ─────────────────────────────────────────────────────────────
+createUserJob:
+  useHelmHooks: false
+  nodeSelector:
+    role: airflow-core
+
+# ── Node placement ────────────────────────────────────────────────────────────
+nodeSelector:
+  role: airflow-core
+
+# ── Scheduler ─────────────────────────────────────────────────────────────────
+scheduler:
+  replicas: 1
+  nodeSelector:
+    role: airflow-core
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+# ── Webserver ─────────────────────────────────────────────────────────────────
+webserver:
+  replicas: 1
+  nodeSelector:
+    role: airflow-core
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  defaultUser:
+    enabled: true
+    role: Admin
+    email: admin@example.com
+    firstName: Admin
+    lastName: User
+    username: ${_AIRFLOW_WWW_USER_USERNAME}
+    password: ${_AIRFLOW_WWW_USER_PASSWORD}
+
+# ── Workers ───────────────────────────────────────────────────────────────────
+workers:
+  replicas: 1
+  nodeSelector:
+    role: airflow-core
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  persistence:
+    enabled: false
+
+# ── Triggerer ─────────────────────────────────────────────────────────────────
+triggerer:
+  enabled: false
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+postgresql:
+  enabled: true
+  image:
+    registry: registry-1.docker.io
+    repository: bitnamilegacy/postgresql
+    tag: "16"
+  primary:
+    nodeSelector:
+      role: airflow-core
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# ── Redis ─────────────────────────────────────────────────────────────────────
+redis:
+  enabled: true
+  nodeSelector:
+    role: airflow-core
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# ── StatsD / Flower ───────────────────────────────────────────────────────────
+statsd:
+  enabled: false
+
+flower:
+  enabled: false
+
+# ── RBAC ──────────────────────────────────────────────────────────────────────
+allowPodLaunching: true
+
+# ── KubernetesExecutor pod template ──────────────────────────────────────────
+# Used for ephemeral task pods spawned by the KubernetesExecutor.
+# These land on the airflow-kube-worker node (tainted, requires toleration).
+podTemplate: |
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: placeholder-name
+    labels:
+      tier: airflow
+      component: worker
+      release: {{ .Release.Name }}
+  spec:
+    nodeSelector:
+      role: airflow-kube-worker
+    tolerations:
+      - key: role
+        operator: Equal
+        value: airflow-kube-worker
+        effect: NoSchedule
+    restartPolicy: Never
+    volumes:
+      - name: airflow-logs
+        persistentVolumeClaim:
+          claimName: airflow-logs
+    containers:
+      - name: base
+        image: placeholder-image
+        imagePullPolicy: Always
+        volumeMounts:
+          - name: airflow-logs
+            mountPath: /opt/airflow/logs
+
+# ── Env vars ──────────────────────────────────────────────────────────────────
+# Only Airflow infra config here.
+# Secrets → airflow-env secret (from .env.secrets)
+# Machine-local → airflow-env-local secret (from .env.local)
+# Shared app config → airflow-env ConfigMap (from k8s/airflow-variables.yaml)
+env:
+  - name: CLOUDSDK_CONFIG
+    value: /opt/airflow/.config/gcloud
+  - name: CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+    value: /opt/airflow/etc/sa.gcpkey.json
+  - name: GOOGLE_APPLICATION_CREDENTIALS
+    value: /opt/airflow/etc/sa.gcpkey.json
+  - name: GCP_PROJECT
+    value: "passculture-data-ehp"
+  - name: ENV_SHORT_NAME
+    value: "dev"
+
+extraEnvFrom: |
+  - configMapRef:
+      name: airflow-env
+  - secretRef:
+      name: airflow-env-secrets
+  - secretRef:
+      name: airflow-env-local
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+# gcloud credentials — mounted from KinD node path set in kind-config.yaml.
+# KinD node path: /opt/airflow/.config/gcloud (← host Mac ~/.config/gcloud)
+volumes:
+  - name: gcloud-config
+    hostPath:
+      path: /opt/airflow/.config/gcloud
+      type: Directory
+
+volumeMounts:
+  - name: gcloud-config
+    mountPath: /opt/airflow/.config/gcloud
+    readOnly: true
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs:
+  persistence:
+    enabled: true
+    existingClaim: airflow-logs
+
+# ── Airflow config ────────────────────────────────────────────────────────────
+config:
+  core:
+    load_examples: "False"
+    parallelism: "8"
+    max_active_tasks_per_dag: "4"
+    max_active_runs_per_dag: "1"
+    dagbag_import_timeout: "120"
+    hostname_callable: "airflow.utils.net.get_host_ip_address"
+  celery:
+    worker_concurrency: "8"
+    worker_log_server_port: "8793"
+  kubernetes_executor:
+    namespace: airflow
+    worker_pods_creation_batch_size: "4"
+    delete_worker_pods: "True"
+    delete_worker_pods_on_failure: "False"
+  scheduler:
+    min_file_process_interval: "120"
+    dag_dir_list_interval: "60"
+  logging:
+    remote_logging: "False"
+    logging_level: "DEBUG"

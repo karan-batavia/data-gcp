@@ -3,6 +3,7 @@
 #######################################################################################
 SHELL := /bin/bash
 PYTHON_VERSION := 3.12
+ORCHESTRATION := orchestration
 
 export PERSONAL_DBT_USER :=
 export DBT_TARGET_PATH ?= "target"
@@ -186,3 +187,48 @@ precommit_docs_run:
 
 docs_run:
 	uv run mkdocs serve
+
+
+#######################################################################################
+########                              kind cluster                             ########
+#######################################################################################
+
+
+cluster:
+	$(MAKE) -C $(ORCHESTRATION) cluster
+
+cluster-down:
+	$(MAKE) -C $(ORCHESTRATION) cluster-down
+
+airflow:
+	$(MAKE) -C $(ORCHESTRATION) airflow
+
+airflow-reset:
+	$(MAKE) -C $(ORCHESTRATION) airflow-reset
+
+airflow-stop:
+	$(MAKE) -C $(ORCHESTRATION) airflow-stop
+
+build-base:
+	$(MAKE) -C $(ORCHESTRATION) build-base
+
+build-worker:
+	$(MAKE) -C $(ORCHESTRATION) build-worker
+
+build-jobs:
+	$(MAKE) -C $(ORCHESTRATION) build-jobs
+
+build-job:
+	$(MAKE) -C $(ORCHESTRATION) build-job JOB=$(JOB)
+
+logs-scheduler:
+	$(MAKE) -C $(ORCHESTRATION) logs-scheduler
+
+logs-webserver:
+	$(MAKE) -C $(ORCHESTRATION) logs-webserver
+
+logs-worker:
+	$(MAKE) -C $(ORCHESTRATION) logs-worker
+
+open:
+	$(MAKE) -C $(ORCHESTRATION) open

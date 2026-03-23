@@ -1,83 +1,130 @@
-# Docker Env variables
+# orchestration/airflow/Dockerfile
+#
+# Build args:
+#   NETWORK_MODE    — "proxy" (local dev, installs corp cert)
+#                     "default" (CI/CD, no cert)
+#
+# Build context: repo root
+#
+# Local dev:
+#   docker build --build-arg NETWORK_MODE=proxy -f orchestration/airflow/Dockerfile -t localhost:5001/airflow-base:dev .
+#
+# CI/CD:
+#   docker build -f orchestration/airflow/Dockerfile -t registry/airflow-base:sha .
+
 ARG NETWORK_MODE=default
+ARG PYTHON_VERSION=3.12
+ARG AIRFLOW_VERSION=2.11.0
 
-################################
-## Stage 1 Builder with proxy ##
-FROM apache/airflow:2.9.3-python3.10 AS base-proxy
-ARG CERT_PATH_DOCKER=/usr/local/share/ca-certificates/nscacert_combined.pem
-COPY airflow/etc/nscacert_combined.pem ${CERT_PATH_DOCKER}
-ENV REQUESTS_CA_BUNDLE=${CERT_PATH_DOCKER}
-ENV SSL_CERT_FILE=${CERT_PATH_DOCKER}
-ENV CURL_CA_BUNDLE=${CERT_PATH_DOCKER}
-ENV HTTPLIB2_CA_CERTS=${CERT_PATH_DOCKER}
+# ── Stage 1a: base with corporate certificate ─────────────────────────────────
+FROM apache/airflow:slim-${AIRFLOW_VERSION}-python${PYTHON_VERSION} AS base-proxy
 
-##################################
-## Stage 1 Builder without proxy ##
-FROM apache/airflow:2.9.3-python3.10 AS base-default
+ARG CERT_PATH=/usr/local/share/ca-certificates/nscacert_combined.pem
+COPY orchestration/airflow/etc/nscacert_combined.pem ${CERT_PATH}
 
-#####################
-## Stage 2 Builder ##
-FROM base-${NETWORK_MODE} AS general-builder
+ENV REQUESTS_CA_BUNDLE=${CERT_PATH}
+ENV SSL_CERT_FILE=${CERT_PATH}
+ENV CURL_CA_BUNDLE=${CERT_PATH}
+ENV HTTPLIB2_CA_CERTS=${CERT_PATH}
+
+# ── Stage 1b: base without certificate ───────────────────────────────────────
+FROM apache/airflow:slim-${AIRFLOW_VERSION}-python${PYTHON_VERSION} AS base-default
+
+# ── Stage 2: common build ─────────────────────────────────────────────────────
+FROM base-${NETWORK_MODE} AS builder
+
+ARG CERT_PATH=/usr/local/share/ca-certificates/nscacert_combined.pem
 ARG AIRFLOW_USER_HOME=/opt/airflow
-ARG GCLOUD_VERSION=google-cloud-cli-538.0.0-linux-x86_64.tar.gz
-ARG CERT_PATH_DOCKER=/usr/local/share/ca-certificates/nscacert_combined.pem
-COPY --from=base-proxy ${CERT_PATH_DOCKER} ${CERT_PATH_DOCKER}
 
-# Install airflow deps
-WORKDIR ${AIRFLOW_USER_HOME}
-COPY ./airflow/orchestration-requirements.txt ./requirements.txt
-RUN uv pip install -r requirements.txt
+COPY --from=base-proxy ${CERT_PATH} ${CERT_PATH}
 
-# Install gcloud
 USER root
+
+# ── uv binary (pinned, ~15MB, no curl needed) ─────────────────────────────────
+COPY --from=ghcr.io/astral-sh/uv:0.6.16 /uv /uvx /usr/local/bin/
+
+# ── System deps + gcloud ──────────────────────────────────────────────────────
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates curl \
+    && apt-get install -y --no-install-recommends \
+        git \
+        curl \
+        ca-certificates \
     && update-ca-certificates \
-    && curl --proto '=https' --proto-redir '=https' -fsSL https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_VERSION} \
-       -o /tmp/${GCLOUD_VERSION} \
-    && cd /tmp \
-    && tar -xzf ${GCLOUD_VERSION} \
-    && rm -rf /var/lib/apt/lists/* \
-    && ./google-cloud-sdk/install.sh --quiet \
-         --usage-reporting=false \
-         --path-update=false \
+    && ARCH=$(dpkg --print-architecture) \
+    && case "${ARCH}" in \
+        amd64) GCLOUD_ARCH="linux-x86_64" ;; \
+        arm64) GCLOUD_ARCH="linux-arm" ;; \
+        *) echo "Unsupported arch: ${ARCH}" && exit 1 ;; \
+    esac \
+    && GCLOUD_VERSION="google-cloud-cli-538.0.0-${GCLOUD_ARCH}.tar.gz" \
+    && curl -fsSL "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_VERSION}" \
+        -o /tmp/gcloud.tar.gz \
+    && tar -xzf /tmp/gcloud.tar.gz -C /tmp \
+    && /tmp/google-cloud-sdk/install.sh --quiet \
+        --usage-reporting=false \
+        --path-update=false \
     && mv /tmp/google-cloud-sdk ${AIRFLOW_USER_HOME}/google-cloud-sdk \
     && chown -R airflow ${AIRFLOW_USER_HOME}/google-cloud-sdk \
-    && rm /tmp/${GCLOUD_VERSION}
+    && rm /tmp/gcloud.tar.gz \
+    && apt-get autoremove -yqq --purge \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="${PATH}:${AIRFLOW_USER_HOME}/google-cloud-sdk/bin"
 
-# Silence gcloud logs for Paramiko ProxyCommand usage
-RUN gcloud config set core/verbosity error \
-    && gcloud config set core/log_http false
+# ── Python deps via uv sync ───────────────────────────────────────────────────
+# Switch to root user before installing — avoids site-packages permission error
+USER root
 
-# Switch back to airflow user for subsequent stages
+WORKDIR ${AIRFLOW_USER_HOME}
+
+COPY pyproject.toml uv.lock ./
+
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+
+RUN uv export --frozen --only-group airflow --no-dev --no-hashes \
+    | uv pip install --target /home/airflow/.local/lib/python3.12/site-packages -r /dev/stdin \
+    && chown -R 50000:0 /home/airflow/.local
+
 USER airflow
 
-################################
-## Stage 3 Builder with proxy ##
-FROM general-builder AS builder-proxy
-ARG CERT_PATH_DOCKER=/usr/local/share/ca-certificates/nscacert_combined.pem
-COPY --from=base-proxy ${CERT_PATH_DOCKER} ${CERT_PATH_DOCKER}
-RUN gcloud config set core/custom_ca_certs_file ${CERT_PATH_DOCKER}
+# ── gcloud config ─────────────────────────────────────────────────────────────
+RUN gcloud config set core/verbosity error \
+    && gcloud config set core/log_http false \
+    && mkdir -p /opt/airflow/.config/gcloud
 
-################################
-## Stage 3 Builder without proxy ##
-FROM general-builder AS builder-default
+# ── Stage 3a: with proxy cert registered in gcloud ───────────────────────────
+FROM builder AS builder-proxy
 
-###################
-## Final builder ##
-FROM builder-${NETWORK_MODE} AS final-builder
-ARG CERT_PATH_DOCKER=/usr/local/share/ca-certificates/nscacert_combined.pem
+ARG KEY_FILE=orchestration/airflow/etc/sa.gcpkey.json
+ARG CERT_PATH=/usr/local/share/ca-certificates/nscacert_combined.pem
+ARG AIRFLOW_USER_HOME=/opt/airflow
 
-# Copy sync script and pools config as root to allow chmod
 USER root
-COPY airflow/scripts/sync_pools.py sync_pools.py
-COPY airflow/config/pools.json pools.json
-RUN chmod +x sync_pools.py
+RUN mkdir -p ${AIRFLOW_USER_HOME}/etc
+COPY ${KEY_FILE} ${AIRFLOW_USER_HOME}/etc/sa.gcpkey.json
+RUN chown airflow ${AIRFLOW_USER_HOME}/etc/sa.gcpkey.json \
+    && chmod 400 ${AIRFLOW_USER_HOME}/etc/sa.gcpkey.json
+USER airflow
+RUN gcloud config set core/custom_ca_certs_file ${CERT_PATH}
 
+# ── Stage 3b: no proxy ───────────────────────────────────────────────────────
+FROM builder AS builder-default
 
-# Switch back to airflow user
+# ── Final ─────────────────────────────────────────────────────────────────────
+FROM builder-${NETWORK_MODE} AS final
+
+ARG AIRFLOW_USER_HOME=/opt/airflow
+
+USER root
+COPY orchestration/airflow/scripts/sync_pools.py ${AIRFLOW_USER_HOME}/sync_pools.py
+COPY orchestration/airflow/config/pools.json     ${AIRFLOW_USER_HOME}/pools.json
+RUN chown airflow \
+      ${AIRFLOW_USER_HOME}/sync_pools.py \
+      ${AIRFLOW_USER_HOME}/pools.json \
+    && chmod +x ${AIRFLOW_USER_HOME}/sync_pools.py
+
 USER airflow
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/entrypoint"]

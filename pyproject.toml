@@ -2,12 +2,14 @@
 name = "data-gcp"
 version = "0.1.1"
 description = "Data Engineering GCP Project for Pass Culture"
-requires-python = ">=3.10,<3.13"
+requires-python = "~=3.12.0"
 
 [dependency-groups]
 airflow = [
-  "apache-airflow[google,gcp]==2.9.3",
+  "apache-airflow[google,gcp]==2.11.0",
   "apache-airflow-providers-ssh>=4.0.1",
+  "apache-airflow-providers-celery==3.7.3",
+  "apache-airflow-providers-cncf-kubernetes>=7.4.0",
   "dbt-core==1.10.11",
   "dbt-bigquery==1.9.1",
   "elementary-data[bigquery]==0.18.1",
@@ -17,9 +19,9 @@ airflow = [
   "typer",
   "deepdiff==8.6.1",
   "pyyaml==6.0.2",
+  "psycopg2-binary>=2.9.0",
   "numpy",
   "flask",
-  "pyyaml",
 ]
 dbt = [
   "dbt-core==1.10.11",
