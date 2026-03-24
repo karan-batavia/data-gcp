@@ -17,8 +17,11 @@ data:
   GCP_PROJECT: "passculture-data-ehp"
   GCP_PROJECT_ID: "passculture-data-ehp"
   GOOGLE_CLOUD_PROJECT: "passculture-data-ehp"
-  DEPLOYMENT_TAG: "airflow-local"
   REGION: "europe-west1"
+
+  # --- Deployment mode flags ---
+  LOCAL_ENV: "1"
+  LOCAL_TAG: "local-airflow"
 
   # --- Paths ---
   DAG_FOLDER: "/opt/airflow/dags"

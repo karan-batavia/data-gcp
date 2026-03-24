@@ -24,6 +24,8 @@ containerdConfigPatches:
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
       [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5001"]
         endpoint = ["http://kind-registry:5000"]
+      [plugins."io.containerd.grpc.v1.cri".registry.mirrors."kind-registry:5000"]
+        endpoint = ["http://kind-registry:5000"]
 
 nodes:
 
@@ -31,9 +33,9 @@ nodes:
 - role: control-plane
   image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 # later versions don't work on M2 silicon chips
 
-# ── Airflow core node ─────────────────────────────────────────────────────────
-# Hosts: scheduler, webserver, celery worker, redis, postgres.
-# No taint — Airflow infrastructure pods land here via nodeSelector only.
+# # ── Airflow core node ─────────────────────────────────────────────────────────
+# # Hosts: scheduler, webserver, celery worker, redis, postgres.
+# # No taint — Airflow infrastructure pods land here via nodeSelector only.
 - role: worker
   image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 # later versions don't work on M2 silicon chips
   kubeadmConfigPatches:
@@ -70,7 +72,7 @@ nodes:
 #     nodeRegistration:
 #       kubeletExtraArgs:
 #         node-labels: "role=airflow-kube-worker"
-#       registerWithTaints: "role=airflow-kube-worker:NoSchedule"
+#       registerWithTaints: "role=airflow-kube-worker:NoSchedule" # Taint to prevent non-tainted pods landing here.
 #   extraMounts:
 #     # Jobs root — task pods may volume-mount job code during local dev.
 #   - hostPath: ${JOBS_ROOT}

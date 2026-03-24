@@ -31,14 +31,14 @@ dags:
 # ── DB Migration ──────────────────────────────────────────────────────────────
 migrateDatabaseJob:
   useHelmHooks: false
-  nodeSelector:
-    role: airflow-core
+  # nodeSelector:
+  #   role: airflow-core
 
 # ── User Creation ─────────────────────────────────────────────────────────────
 createUserJob:
   useHelmHooks: false
-  nodeSelector:
-    role: airflow-core
+  # nodeSelector:
+  #   role: airflow-core
 
 # ── Node placement ────────────────────────────────────────────────────────────
 nodeSelector:
@@ -47,8 +47,8 @@ nodeSelector:
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 scheduler:
   replicas: 1
-  nodeSelector:
-    role: airflow-core
+  # nodeSelector:
+  #   role: airflow-core
   resources:
     requests:
       cpu: 100m
@@ -60,8 +60,8 @@ scheduler:
 # ── Webserver ─────────────────────────────────────────────────────────────────
 webserver:
   replicas: 1
-  nodeSelector:
-    role: airflow-core
+  # nodeSelector:
+  #   role: airflow-core
   resources:
     requests:
       cpu: 100m
@@ -81,8 +81,8 @@ webserver:
 # ── Workers ───────────────────────────────────────────────────────────────────
 workers:
   replicas: 1
-  nodeSelector:
-    role: airflow-core
+  # nodeSelector:
+  #   role: airflow-core
   resources:
     requests:
       cpu: 100m
@@ -105,8 +105,8 @@ postgresql:
     repository: bitnamilegacy/postgresql
     tag: "16"
   primary:
-    nodeSelector:
-      role: airflow-core
+    # nodeSelector:
+    #   role: airflow-core
     resources:
       requests:
         cpu: 50m
@@ -115,8 +115,8 @@ postgresql:
 # ── Redis ─────────────────────────────────────────────────────────────────────
 redis:
   enabled: true
-  nodeSelector:
-    role: airflow-core
+  # nodeSelector:
+  #   role: airflow-core
   resources:
     requests:
       cpu: 50m
@@ -171,6 +171,8 @@ podTemplate: |
 # Machine-local → airflow-env-local secret (from .env.local)
 # Shared app config → airflow-env ConfigMap (from k8s/airflow-variables.yaml)
 env:
+  - name: AIRFLOW_CONN_KUBERNETES_DEFAULT
+    value: "kubernetes://?extra__kubernetes__in_cluster=true&extra__kubernetes__namespace=airflow"
   - name: CLOUDSDK_CONFIG
     value: /opt/airflow/.config/gcloud
   - name: CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE

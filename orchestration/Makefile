@@ -7,10 +7,12 @@ REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 .PHONY: help cluster cluster-down airflow airflow-reset airflow-stop helm-upgrade \
         build-base build-jobs build-job \
+        render-service-dockerfile build-service-image push-service-image \
+        kind-load-service-image deploy-service-image \
         dags-pvc logs-pvc cluster-addons \
         logs-scheduler logs-webserver logs-worker open \
         nodes-metrics pods-metrics \
-        _check-kind _check-helm _check-docker
+        _check-kind _check-helm _check-docker _check-service-vars
 
 # ── Local overrides ───────────────────────────────────────────────────────────
 # .env.build  — Makefile/Docker build vars (REGISTRY, TAG, NETWORK_MODE...)
@@ -67,6 +69,10 @@ help:
 	@echo "  make build-jobs               Build + push all job images"
 	@echo "  make build-job JOB=etl_jobs/external/tiktok"
 	@echo "                                Build + push a single job image"
+	@echo "  make deploy-service-image SERVICE_NAME=tiktok SERVICE_PATH=jobs/etl_jobs/external/tiktok"
+	@echo "                                Render Dockerfile, build + push service image to local registry"
+	@echo "  make kind-load-service-image SERVICE_NAME=tiktok SERVICE_PATH=jobs/etl_jobs/external/tiktok"
+	@echo "                                Render Dockerfile, build + load service image directly into KinD"
 	@echo ""
 	@echo "  Metrics"
 	@echo "  ──────────────────────────────────────────────────────"
@@ -360,3 +366,61 @@ _check-docker:
 	  || { echo "❌  docker not found."; exit 1; }
 	@docker info >/dev/null 2>&1 \
 	  || { echo "❌  docker daemon not running."; exit 1; }
+
+
+# ── Service images ────────────────────────────────────────────────────────────
+# Build and register a single microservice image on the local KinD registry.
+#
+# Required:
+#   SERVICE_NAME   — image name and Dockerfile suffix  (e.g. tiktok)
+#   SERVICE_PATH   — path to the service dir, relative to repo root
+#                    (e.g. jobs/etl_jobs/external/tiktok)
+# Optional:
+#   NETWORK_MODE   — proxy | default  (default: default)
+#   REGISTRY       — local registry   (default: localhost:5001)
+#   TAG            — image tag        (default: dev)
+
+SERVICE_NAME ?=
+SERVICE_PATH ?=
+
+_check-service-vars:
+	@[ -n "$(SERVICE_NAME)" ] || \
+	  { echo "❌  SERVICE_NAME is required.  e.g. make deploy-service-image SERVICE_NAME=tiktok SERVICE_PATH=jobs/etl_jobs/external/tiktok"; exit 1; }
+	@[ -n "$(SERVICE_PATH)" ] || \
+	  { echo "❌  SERVICE_PATH is required.  e.g. make deploy-service-image SERVICE_NAME=tiktok SERVICE_PATH=jobs/etl_jobs/external/tiktok"; exit 1; }
+
+render-service-dockerfile: _check-service-vars
+	@echo "▶ Rendering Dockerfile for '$(SERVICE_NAME)' (network-mode: $(NETWORK_MODE))..."
+	@cd $(REPO_ROOT) && uv run automations/containerize_microservice.py \
+	  --service-name $(SERVICE_NAME) \
+	  --service-path $(SERVICE_PATH) \
+	  --network-mode $(NETWORK_MODE)
+	@echo "  ✓ $(SERVICE_PATH)/Dockerfile.$(SERVICE_NAME).$(NETWORK_MODE)"
+
+build-service-image: render-service-dockerfile _check-docker
+	@echo "▶ Building $(REGISTRY)/$(SERVICE_NAME):$(TAG)..."
+	docker build \
+	  --build-arg NETWORK_MODE=$(NETWORK_MODE) \
+	  -f $(REPO_ROOT)/$(SERVICE_PATH)/Dockerfile.$(SERVICE_NAME).$(NETWORK_MODE) \
+	  -t $(REGISTRY)/$(SERVICE_NAME):$(TAG) \
+	  $(REPO_ROOT)
+
+push-service-image: build-service-image
+	@echo "▶ Pushing to local registry..."
+	docker push $(REGISTRY)/$(SERVICE_NAME):$(TAG)
+	@echo "  ✓ $(REGISTRY)/$(SERVICE_NAME):$(TAG)"
+
+# Push to registry (standard path — cluster pulls from localhost:5001)
+deploy-service-image: push-service-image
+	@echo ""
+	@echo "  ✅ $(SERVICE_NAME):$(TAG) ready."
+	@echo "     Image: $(REGISTRY)/$(SERVICE_NAME):$(TAG)"
+
+# Direct load into KinD (skips registry push — useful when registry is unavailable)
+kind-load-service-image: build-service-image _check-kind
+	@echo "▶ Loading into KinD cluster '$(KIND_CLUSTER)'..."
+	kind load docker-image $(REGISTRY)/$(SERVICE_NAME):$(TAG) --name $(KIND_CLUSTER)
+	@echo ""
+	@echo "  ✅ $(SERVICE_NAME):$(TAG) loaded into cluster '$(KIND_CLUSTER)'."
+	@echo "     Image: $(REGISTRY)/$(SERVICE_NAME):$(TAG)"
+

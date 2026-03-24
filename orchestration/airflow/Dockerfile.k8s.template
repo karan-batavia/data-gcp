@@ -1,0 +1,116 @@
+# orchestration/airflow/Dockerfile
+#
+# Build args:
+#   NETWORK_MODE    — "proxy" (local dev, installs corp cert)
+#                     "default" (CI/CD, no cert)
+#
+# Build context: repo root
+#
+# Local dev:
+#   docker build --build-arg NETWORK_MODE=proxy -f orchestration/airflow/Dockerfile -t localhost:5001/airflow-base:dev .
+#
+# CI/CD:
+#   docker build -f orchestration/airflow/Dockerfile -t registry/airflow-base:sha .
+
+ARG NETWORK_MODE=${NETWORK_MODE}
+ARG PYTHON_VERSION=${PYTHON_VERSION}
+ARG UV_VERSION=0.6.16
+
+# ── Stage 0: uv binary ───────────────────────────────────────────────────────
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-binary
+
+# ── Stage 1a: base with corporate certificate ─────────────────────────────────
+FROM python:${PYTHON_VERSION}-slim AS base-proxy
+
+ARG CERT_PATH=/usr/local/share/ca-certificates/nscacert_combined.pem
+COPY orchestration/airflow/etc/nscacert_combined.pem ${CERT_PATH}
+
+ENV REQUESTS_CA_BUNDLE=${CERT_PATH}
+ENV SSL_CERT_FILE=${CERT_PATH}
+ENV CURL_CA_BUNDLE=${CERT_PATH}
+ENV HTTPLIB2_CA_CERTS=${CERT_PATH}
+
+# ── Stage 1b: base without certificate ───────────────────────────────────────
+FROM python:${PYTHON_VERSION}-slim AS base-default
+
+# ── Stage 2: common build ─────────────────────────────────────────────────────
+FROM base-${NETWORK_MODE} AS builder
+
+COPY --from=base-proxy /usr/local/share/ca-certificates/nscacert_combined.pem /usr/local/share/ca-certificates/nscacert_combined.pem
+
+USER root
+
+# ── uv binary (pinned, ~15MB, no curl needed) ─────────────────────────────────
+COPY --from=uv-binary /uv /uvx /usr/local/bin/
+
+# ── System deps + gcloud ──────────────────────────────────────────────────────
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        git \
+        curl \
+        ca-certificates \
+    && update-ca-certificates \
+    && ARCH=$(dpkg --print-architecture) \
+    && case "${ARCH}" in \
+        amd64) GCLOUD_ARCH="linux-x86_64" ;; \
+        arm64) GCLOUD_ARCH="linux-arm" ;; \
+        *) echo "Unsupported arch: ${ARCH}" && exit 1 ;; \
+    esac \
+    && GCLOUD_VERSION="google-cloud-cli-538.0.0-${GCLOUD_ARCH}.tar.gz" \
+    && curl -fsSL "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${GCLOUD_VERSION}" \
+        -o /tmp/gcloud.tar.gz \
+    && tar -xzf /tmp/gcloud.tar.gz -C /tmp \
+    && /tmp/google-cloud-sdk/install.sh --quiet \
+        --usage-reporting=false \
+        --path-update=false \
+    && mv /tmp/google-cloud-sdk /google-cloud-sdk \
+    && rm /tmp/gcloud.tar.gz \
+    && apt-get autoremove -yqq --purge \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="${PATH}:/google-cloud-sdk/bin"
+
+# ── Python deps via uv sync ───────────────────────────────────────────────────
+# Switch to root user before installing — avoids site-packages permission error
+USER root
+
+ARG SRC_DIR=jobs/etl_jobs/external/tiktok
+
+COPY ${SRC_DIR} ./jobs
+
+WORKDIR jobs
+
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+
+RUN uv sync --no-install-project --no-dev --no-editable --no-cache --frozen \
+    && rm -rf /root/.cache/uv
+
+
+
+# ── gcloud config ─────────────────────────────────────────────────────────────
+RUN gcloud config set core/verbosity error \
+    && gcloud config set core/log_http false \
+    && mkdir -p /opt/airflow/.config/gcloud
+
+# ── Stage 3a: with proxy cert registered in gcloud ───────────────────────────
+FROM builder AS builder-proxy
+
+ARG KEY_FILE=orchestration/airflow/etc/sa.gcpkey.json
+ARG CERT_PATH=/usr/local/share/ca-certificates/nscacert_combined.pem
+
+USER root
+RUN mkdir -p /etc
+COPY ${KEY_FILE} /etc/sa.gcpkey.json
+RUN gcloud config set core/custom_ca_certs_file ${CERT_PATH}
+
+# ── Stage 3b: no proxy ───────────────────────────────────────────────────────
+FROM builder AS builder-default
+
+# ── Final ─────────────────────────────────────────────────────────────────────
+FROM builder-${NETWORK_MODE} AS final
+
+
+ENTRYPOINT ["uv", "run", "main.py"]
+CMD []
