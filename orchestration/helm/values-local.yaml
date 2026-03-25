@@ -9,7 +9,7 @@
 airflowVersion: "2.11.0"
 
 # ── Executor ──────────────────────────────────────────────────────────────────
-executor: "CeleryExecutor,KubernetesExecutor"
+executor: "CeleryExecutor" #,KubernetesExecutor"
 
 # ── Images ────────────────────────────────────────────────────────────────────
 images:
