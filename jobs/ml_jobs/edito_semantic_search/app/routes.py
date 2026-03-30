@@ -1,4 +1,3 @@
-import asyncio
 import time
 
 import pandas as pd
@@ -48,17 +47,13 @@ def _startup_warmup():
             _ = search_client.vector_search(query_vector=dummy_query_vector, k=1)
             logger.info(f"Vector search warmup: {time.time() - vector_start:.2f}s")
 
-            llm_start = time.time()
-            dummy_results = [
-                {
-                    "id": "1",
-                    "offer_name": "Warmup",
-                    "offer_description": "Test",
-                    "offer_subcategory_id": "LIVRE_PAPIER",
-                }
-            ]
-            asyncio.run(llm_thematic_filtering("warmup test", dummy_results))
-            logger.info(f"LLM warmup: {time.time() - llm_start:.2f}s")
+            # NOTE: LLM warmup is skipped intentionally.
+            # Using asyncio.run() here would create and close a temporary event loop,
+            # causing the GoogleProvider/httpx client to cache a reference to that
+            # closed loop. When Hypercorn later serves requests on its own loop,
+            # the agent would fail with "Event loop is closed".
+            # The agent and model are already initialized at import time.
+            logger.info("LLM warmup skipped (agent initialized at import time)")
 
         logger.info(f"Startup warmup completed in {time.time() - warmup_start:.2f}s")
     except Exception as e:
