@@ -3,6 +3,6 @@ install-api:
 streamlit:
 	PYTHONPATH=. streamlit run streamlits/st_visualise_api_response.py
 start_app:
-	uv run --no-dev hypercorn --bind 0.0.0.0:8085 app.app:app --workers=1
+	uv run --env-file .env --no-dev hypercorn --bind 0.0.0.0:8085 app.app:app --workers=5
 test:
 	PYTHONPATH=. pytest tests

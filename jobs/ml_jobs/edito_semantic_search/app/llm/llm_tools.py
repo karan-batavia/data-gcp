@@ -1,5 +1,6 @@
 import time
 
+import nest_asyncio
 import pandas as pd
 from loguru import logger
 from pydantic_ai import Agent
@@ -9,6 +10,11 @@ from pydantic_ai.settings import ModelSettings
 
 from app.constants import GCP_PROJECT, GEMINI_MODEL_NAME
 from app.models.validators import EditorialResult
+
+# Patch asyncio to allow nested event loops.
+# Required because Hypercorn (ASGI) runs its own event loop,
+# and pydantic_ai's run_sync() needs to create/use one too.
+nest_asyncio.apply()
 
 # --- Initialization ---
 
@@ -149,7 +155,7 @@ def llm_thematic_filtering(
             f"⚠️ Slow LLM response ({elapsed_time:.2f}s) - possible validation retries"
         )
         logger.info(
-            f'llm_result _attempt_count: {getattr(llm_result, "_attempt_count", "N/A")} '
+            f"llm_result _attempt_count: {getattr(llm_result, '_attempt_count', 'N/A')}"
         )
 
     llm_output = (
@@ -203,7 +209,9 @@ def llm_thematic_filtering(
         llm_df = pd.DataFrame(processed_items)
         llm_df["rank"] = range(1, len(llm_df) + 1)
         logger.info(f"Successfully processed {len(llm_df)} items")
-        logger.info(f"LLM processed items: {llm_df['item_id'].tolist()}")  # Log first 3 items for debugging
+        logger.info(
+            f"LLM processed items: {llm_df['item_id'].tolist()}"
+        )  # Log first 3 items for debugging
     else:
         logger.warning("No valid items after processing")
         llm_df = pd.DataFrame()
