@@ -1,6 +1,5 @@
 import time
 
-import nest_asyncio
 import pandas as pd
 from loguru import logger
 from pydantic_ai import Agent
@@ -10,11 +9,6 @@ from pydantic_ai.settings import ModelSettings
 
 from app.constants import GCP_PROJECT, GEMINI_MODEL_NAME
 from app.models.validators import EditorialResult
-
-# Patch asyncio to allow nested event loops.
-# Required because Hypercorn (ASGI) runs its own event loop,
-# and pydantic_ai's run_sync() needs to create/use one too.
-nest_asyncio.apply()
 
 # --- Initialization ---
 
@@ -124,7 +118,7 @@ def build_prompt(question: str, retrieved_results: list):
     return prompt, reverse_map
 
 
-def llm_thematic_filtering(
+async def llm_thematic_filtering(
     search_query: str, vector_search_results: list
 ) -> pd.DataFrame:
     # 1. Build prompt and get the ID mapping
@@ -132,8 +126,8 @@ def llm_thematic_filtering(
 
     start_time = time.time()
 
-    # 2. Run LLM
-    llm_result = _cached_agent.run_sync(prompt)
+    # 2. Run LLM (async — works natively with Hypercorn's event loop)
+    llm_result = await _cached_agent.run(prompt)
     elapsed_time = time.time() - start_time
 
     # Log token usage and timing

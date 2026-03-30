@@ -1,4 +1,4 @@
-import threading
+import asyncio
 import time
 from datetime import datetime
 
@@ -36,7 +36,7 @@ _warmup_state = {
     "last_warmup": None,
     "warmup_count": 0,
     "is_warm": False,
-    "background_thread": None,
+    "background_task": None,
 }
 WARMUP_INTERVAL_MINUTES = 10  # Keep connections warm every 10 minutes
 
@@ -47,8 +47,8 @@ def is_alive() -> Response:
     return Response(status=200)
 
 
-def _perform_warmup():
-    """Internal warmup logic that can be called from endpoint or background thread."""
+async def _perform_warmup():
+    """Internal warmup logic that can be called from endpoint or background task."""
     try:
         logger.info("Starting warmup cycle...")
         warmup_start = time.time()
@@ -80,7 +80,7 @@ def _perform_warmup():
                     "offer_subcategory_id": "LIVRE_PAPIER",
                 }
             ]
-            _ = llm_thematic_filtering("warmup test", dummy_results)
+            _ = await llm_thematic_filtering("warmup test", dummy_results)
             llm_time = time.time() - llm_start
             logger.info(f"✓ LLM warmup: {llm_time:.2f}s")
 
@@ -102,37 +102,37 @@ def _perform_warmup():
         return False, 0
 
 
-def _background_warmup_loop():
-    """Background thread that periodically warms up connections."""
+async def _background_warmup_loop():
+    """Background async task that periodically warms up connections."""
     logger.info(
-        f"Background warmup thread started (interval: {WARMUP_INTERVAL_MINUTES}min)"
+        f"Background warmup task started (interval: {WARMUP_INTERVAL_MINUTES}min)"
     )
 
     while True:
         try:
-            time.sleep(WARMUP_INTERVAL_MINUTES * 60)
+            await asyncio.sleep(WARMUP_INTERVAL_MINUTES * 60)
             logger.info("Running scheduled warmup...")
-            _perform_warmup()
+            await _perform_warmup()
         except Exception as e:
             logger.error(f"Background warmup error: {e}")
 
 
 @api.route("/warmup", methods=["GET", "POST"])
-def warmup() -> Response:
+async def warmup() -> Response:
     """
     Warmup endpoint to initialize all connections and caches.
-    Automatically starts background warmup thread on first call.
+    Automatically starts background warmup task on first call.
     """
     try:
-        success, duration = _perform_warmup()
+        success, duration = await _perform_warmup()
 
-        # Start background warmup thread if not already running
-        if _warmup_state["background_thread"] is None:
-            logger.info("Starting background warmup thread...")
-            thread = threading.Thread(target=_background_warmup_loop, daemon=True)
-            thread.start()
-            _warmup_state["background_thread"] = thread
-            logger.info("Background warmup thread started")
+        # Start background warmup task if not already running
+        if _warmup_state["background_task"] is None:
+            logger.info("Starting background warmup task...")
+            loop = asyncio.get_event_loop()
+            task = loop.create_task(_background_warmup_loop())
+            _warmup_state["background_task"] = task
+            logger.info("Background warmup task started")
 
         if success:
             return jsonify(
@@ -174,14 +174,14 @@ def warmup_status() -> Response:
             "minutes_since_last_warmup": round(time_since_warmup, 1)
             if time_since_warmup
             else None,
-            "background_thread_active": _warmup_state["background_thread"] is not None
-            and _warmup_state["background_thread"].is_alive(),
+            "background_task_active": _warmup_state["background_task"] is not None
+            and not _warmup_state["background_task"].done(),
         }
     ), 200
 
 
 @api.route("/predict", methods=["POST"])
-def predict():
+async def predict():
     """Predict endpoint."""
     # Warning instances Handling
     try:
@@ -220,7 +220,7 @@ def predict():
             )
             # Here we do the LLM thematic filtering
             llm_time = time.time()
-            llm_df = llm_thematic_filtering(
+            llm_df = await llm_thematic_filtering(
                 search_query=prediction_request.search_query,
                 vector_search_results=vector_search_results,
             )
