@@ -86,7 +86,7 @@ class TikTokETL:
             return None
         except TikTokAPIError as e:
             logger.error("Error extracting account data: {}", e)
-            return None
+            raise
 
     def extract_videos_data(self, account_id: str) -> List[Dict[str, Any]]:
         """
@@ -117,12 +117,7 @@ class TikTokETL:
             "impression_sources",
             "audience_countries",
         ]
-        try:
-            videos = self.client.get_all_videos(account_id, fields)
-            return videos
-        except TikTokAPIError as e:
-            logger.error("Error extracting videos data: {}", e)
-            return []
+        return self.client.get_all_videos(account_id, fields)  # +
 
     def transform_hourly_activity_data(
         self, json_data: List[Dict[str, Any]]
@@ -399,14 +394,11 @@ class TikTokETL:
             account_data = self.extract_account_data(account_id, start_date, end_date)
 
             if not account_data:
-                logger.error("Failed to extract account data")
-                return False
+                raise RuntimeError("Failed to extract account data")  # +
             # Extract username
             account_username = account_data["data"]["username"]
-
             if not account_username:
-                logger.error("Failed to load account data")
-                return False
+                raise RuntimeError("Failed to retrieve account username")  # +
 
             # Extract and load videos data
             logger.info("Extracting videos data...")
@@ -424,4 +416,4 @@ class TikTokETL:
 
         except Exception as e:
             logger.error("ETL process failed: {}", e)
-            return False
+            raise

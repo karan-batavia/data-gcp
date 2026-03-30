@@ -5,6 +5,7 @@ This module provides the main entry point for the TikTok ETL job,
 using the class-based architecture for better organization and maintainability.
 """
 
+import sys  # +
 from typing import Optional
 
 import typer
@@ -47,12 +48,8 @@ def main(
             client_secret=CLIENT_SECRET,
             refresh_token=REFRESH_TOKEN,
         )
-
-        # Authenticate
-        if not client.authenticate():
-            logger.info("Failed to authenticate with TikTok API. Exiting.")
-            return
-
+    
+        client.authenticate()  # raises on failure now, no return value check needed
         logger.info("Successfully authenticated with TikTok API")
 
         # Get account ID if not provided
@@ -62,25 +59,18 @@ def main(
                 account_id = account_info["data"]["user"]["open_id"]
                 logger.info(f"Retrieved account ID: {account_id}")
             except TikTokAPIError as e:
-                logger.info(f"Failed to get account info: {e}")
-                return
+                raise RuntimeError(f"Failed to get account info: {e}") from e  # +
 
         # Initialize ETL processor
         etl_processor = TikTokETL(client)
-
-        # Run ETL process
-        success = etl_processor.run_etl(
+        etl_processor.run_etl(  # raises on failure now, no return value check needed
             account_id=account_id, start_date=start_date, end_date=end_date
         )
-
-        if success:
-            logger.info("TikTok ETL job completed successfully!")
-        else:
-            logger.info("TikTok ETL job failed!")
+        logger.info("TikTok ETL job completed successfully!")
 
     except Exception as e:
-        logger.info(f"Unexpected error in TikTok ETL job: {e}")
-        raise
+        logger.error(f"TikTok ETL job failed: {e}")
+        sys.exit(1)  # +
 
 
 if __name__ == "__main__":

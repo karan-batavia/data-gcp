@@ -76,10 +76,10 @@ class TikTokClient:
             if response.get("access_token"):
                 self.access_token = response["access_token"]
                 return True
-            return False
+            raise TikTokAPIError("Authentication response missing access_token.")  # +
         except Exception as e:
-            logger.info(f"Authentication failed: {e}")
-            return False
+            logger.error(f"Authentication failed: {e}")
+            raise
 
     def _refresh_access_token(self) -> Dict[str, Any]:
         """Refresh the access token using the refresh token."""
@@ -161,9 +161,7 @@ class TikTokClient:
         if not self.access_token:
             raise TikTokAPIError("Not authenticated. Call authenticate() first.")
 
-        headers = {
-            "Access-Token": self.access_token,
-        }
+        headers = {"Access-Token": self.access_token}
         params = {
             "business_id": account_id,
             "fields": json.dumps(fields),
@@ -204,10 +202,8 @@ class TikTokClient:
         """
         if not self.access_token:
             raise TikTokAPIError("Not authenticated. Call authenticate() first.")
-
-        headers = {
-            "Access-Token": self.access_token,
-        }
+ 
+        headers = {"Access-Token": self.access_token}
         params = {
             "business_id": account_id,
             "fields": json.dumps(fields),
@@ -245,23 +241,20 @@ class TikTokClient:
         page_count = 0
 
         while has_more:
-            try:
-                results = self.get_account_videos(
-                    account_id=account_id,
-                    fields=fields,
-                    cursor=cursor,
-                    max_count=20,
-                )
-                videos = results["data"].get("videos", [])
-                cursor = results["data"].get("cursor")
-                has_more = results["data"].get("has_more", False)
+            # try/except removed to propagate errors
+            results = self.get_account_videos(
+                account_id=account_id,
+                fields=fields,
+                cursor=cursor,
+                max_count=20,
+            )
+            videos = results["data"].get("videos", [])
+            cursor = results["data"].get("cursor")
+            has_more = results["data"].get("has_more", False)
 
-                videos_data.extend(videos)
-                page_count += 1
-                logger.debug(f"Imported page {page_count} with {len(videos)} videos")
+            videos_data.extend(videos)
+            page_count += 1
+            logger.debug(f"Imported page {page_count} with {len(videos)} videos")
 
-            except TikTokAPIError as e:
-                logger.error(f"Error fetching videos page {page_count + 1}: {e}")
-                has_more = False
 
         return videos_data
