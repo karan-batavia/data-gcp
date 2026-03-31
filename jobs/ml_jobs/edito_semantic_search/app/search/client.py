@@ -121,17 +121,13 @@ class SearchClient:
         # Cache the global dataset once at startup
         logger.info("Loading global dataset for fast partition pruning...")
         logger.info(f"Using parquet file: {PARQUET_FILE}")
-        
+
         gcs = GcsFileSystem()
         gcs_path = PARQUET_FILE.replace("gs://", "")
-        
-        # NOTE: Ensure these types match your actual data! 
-        # I assumed offer_subcategory_id is an Int64. If it's a string, change it to pa.string().
+
+        # NOTE: Ensure these types match your actual data!
         hive_partitioning = ds.partitioning(
-            flavor="hive",
-            schema=pa.schema([
-                ("offer_subcategory_id", pa.string())
-            ])
+            flavor="hive", schema=pa.schema([("offer_subcategory_id", pa.string())])
         )
 
         self.dataset = ds.dataset(
@@ -145,7 +141,9 @@ class SearchClient:
     # ── Public API ───────────────────────────────────────────────────────
 
     def table_query(self, k: int = 1000, filters: list[dict] | None = None):
-        """Scalar search with optional filters. Relies on native Polars partition pruning."""
+        """
+        Scalar search with optional filters. Relies on native Polars partition pruning.
+        """
         lf = self.global_lf
 
         if filters:

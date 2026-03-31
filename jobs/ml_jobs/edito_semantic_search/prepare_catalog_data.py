@@ -17,14 +17,15 @@ app = typer.Typer()
 @app.command()
 def prepare_catalog_data(
     env: str = typer.Option("dev", help="Environment: dev, stg, or prod"),
-    partition: bool = typer.Option(
-        True, help="Run partitioning after creating parquet"
-    ),
-    partition_cols: list[str] = typer.Option(
+    partition_cols: list[str] = typer.Option(  # noqa: B008
         ["offer_subcategory_id", "venue_department_code"],
         "--partition-col",
         "-p",
         help="Columns to partition by. Pass multiple times for nested partitions",
+    ),
+    *,
+    partition: bool = typer.Option(
+        True, help="Run partitioning after creating parquet"
     ),
 ):
     """
@@ -37,7 +38,6 @@ def prepare_catalog_data(
     analytics_dataset = f"analytics_{env}"
     sandbox_dataset = f"sandbox_{env}"
     mlfeat_dataset = f"ml_feat_{env}"
-    output_table = "chatbot_edito_search_db_offers"
     output_path = (
         f"gs://mlflow-bucket-{gcp_env}/streamlit_data/chatbot_edito/offers_{env}/"
     )
@@ -93,7 +93,7 @@ def prepare_catalog_data(
             logger.info(f"Columns available in source: {df.columns}")
 
             # Check required columns
-            required_cols = list(partition_cols) + ["item_id"]
+            required_cols = [*list(partition_cols), "item_id"]
             missing = [col for col in required_cols if col not in df.columns]
             if missing:
                 raise ValueError(
