@@ -234,4 +234,4 @@ config:
     dag_dir_list_interval: "60"
   logging:
     remote_logging: "False"
-    logging_level: "DEBUG"
+    logging_level: "INFO"

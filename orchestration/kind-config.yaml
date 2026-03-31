@@ -32,6 +32,11 @@ nodes:
 # ── Control plane ─────────────────────────────────────────────────────────────
 - role: control-plane
   image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 # later versions don't work on M2 silicon chips
+  extraPortMappings:
+  - containerPort: 6443     # Kubernetes API port inside the container
+    hostPort: 6443         # port on the host (or Docker bridge)
+    listenAddress: "0.0.0.0" # expose to all interfaces
+    protocol: TCP
 
 # # ── Airflow core node ─────────────────────────────────────────────────────────
 # # Hosts: scheduler, webserver, celery worker, redis, postgres.

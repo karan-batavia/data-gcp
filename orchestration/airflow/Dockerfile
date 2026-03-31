@@ -14,7 +14,7 @@
 
 ARG NETWORK_MODE=default
 ARG PYTHON_VERSION=3.12
-ARG AIRFLOW_VERSION=2.11.0
+ARG AIRFLOW_VERSION=2.11.2
 
 # ── Stage 1a: base with corporate certificate ─────────────────────────────────
 FROM apache/airflow:slim-${AIRFLOW_VERSION}-python${PYTHON_VERSION} AS base-proxy

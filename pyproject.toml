@@ -6,7 +6,7 @@ requires-python = "~=3.12.0"
 
 [dependency-groups]
 airflow = [
-  "apache-airflow[google,gcp]==2.11.0",
+  "apache-airflow[google,gcp]==2.11.2",
   "apache-airflow-providers-ssh>=4.0.1",
   "apache-airflow-providers-celery==3.7.3",
   "apache-airflow-providers-cncf-kubernetes>=7.4.0",
