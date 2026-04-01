@@ -8,3 +8,5 @@ test:
 	PYTHONPATH=. pytest tests
 build_and_push_docker_image:
 	uv run --env-file .env --no-dev build_and_push_docker_image.py
+deploy_model:
+	uv run --env-file .env --no-dev deploy_model.py
