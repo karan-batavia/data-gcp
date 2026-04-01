@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Annotated
 
 from airflow import DAG
 from airflow.models import Param
@@ -17,6 +18,7 @@ from common.operators.gce import (
     SSHGCEOperator,
     StartGCEOperator,
 )
+from pydantic import Field
 
 # Ariflow params
 DEFAULT_ARGS = {
@@ -28,7 +30,16 @@ DEFAULT_ARGS = {
 
 
 class GCEConfig(DagBaseConfig):
-    instance_name: str = f"build-and-deploy-edito-semantic-search-api-{ENV_SHORT_NAME}"
+    _MAX_LENGTH_PREFIX: int = len(
+        "airflow-local-prod-"
+    )  # At runtime, the instance name will be prefixed with "local-airflow-prod-" or "local-airflow-dev-"
+    instance_name: Annotated[
+        str,
+        Field(
+            max_length=63 - _MAX_LENGTH_PREFIX,
+            pattern=rf"^[a-z][-a-z0-9]{{0,{61 - _MAX_LENGTH_PREFIX}}}[a-z0-9]$",
+        ),
+    ] = f"build-and-deploy-edito-semantic-search-api-{ENV_SHORT_NAME}"
     instance_type: str = "n1-standard-4"
 
 
