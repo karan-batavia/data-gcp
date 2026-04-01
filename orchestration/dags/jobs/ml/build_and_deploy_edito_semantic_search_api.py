@@ -44,7 +44,7 @@ class GCEConfig(DagBaseConfig):
             max_length=63 - _MAX_LENGTH_PREFIX,
             pattern=rf"^[a-z][-a-z0-9]{{0,{61 - _MAX_LENGTH_PREFIX}}}[a-z0-9]$",
         ),
-    ] = f"build-and-deploy-edito-semantic-search-api-{ENV_SHORT_NAME}"
+    ] = f"build-and-deploy-semantic-search-api-{ENV_SHORT_NAME}"
     instance_type: str = "n1-standard-4"
 
 
