@@ -10,7 +10,6 @@ from common.config import (
     DAG_FOLDER,
     DAG_TAGS,
     ENV_SHORT_NAME,
-    DagBaseConfig,
 )
 from common.operators.gce import (
     DeleteGCEOperator,
@@ -18,7 +17,7 @@ from common.operators.gce import (
     SSHGCEOperator,
     StartGCEOperator,
 )
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Ariflow params
 DEFAULT_ARGS = {
@@ -27,6 +26,12 @@ DEFAULT_ARGS = {
     "retries": 0,
     "retry_delay": timedelta(minutes=2),
 }
+
+
+class DagBaseConfig(BaseModel):
+    model_config = ConfigDict(
+        frozen=True, validate_default=True, strict=True, extra="forbid"
+    )
 
 
 class GCEConfig(DagBaseConfig):
