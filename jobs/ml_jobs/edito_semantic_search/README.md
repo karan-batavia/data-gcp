@@ -10,25 +10,26 @@ This microservice provides a semantic search API and related tools for editorial
 make install
 ```
 
+This will install the project with uv and initialize the .env file.
+(by default it is rooted on dev environment)
+
 ## Data Preparation
 
 ### Prepare Catalog Data
 
-Run BigQuery queries to extract offer catalog data, export to GCS as parquet, and optionally partition it:
+Run BigQuery queries to extract offer catalog data, export to GCS as parquet
+    in partitionned directories.
 
 ```bash
 # Default: dev environment with partitioning
-python prepare_catalog_data.py
+PYTHONPATH=. python prepare_catalog_data.py
 
 # Specific environment
-python prepare_catalog_data.py --env stg
-python prepare_catalog_data.py --env prod
-
-# Skip partitioning
-python prepare_catalog_data.py --env dev --no-partition
+PYTHONPATH=. python prepare_catalog_data.py --env stg
+PYTHONPATH=. python prepare_catalog_data.py --env prod
 
 # Custom partition columns
-python prepare_catalog_data.py --env dev -p offer_category_id -p venue_department_code
+PYTHONPATH=. python prepare_catalog_data.py --env dev -p offer_category_id -p venue_department_code
 ```
 
 **What it does:**
@@ -68,8 +69,7 @@ make streamlit
 
 This will start Streamlit defined in `streamlits/st_visualise_api_response.py`.
 
-
-## Deployment
+##  Deployment
 
 The API is containerized using Docker. To build and push the container
 

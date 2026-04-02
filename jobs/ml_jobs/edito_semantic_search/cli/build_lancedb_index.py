@@ -1,3 +1,5 @@
+# TODO: Refactor this script if it is still usefull, or delete otherwise
+
 import os
 
 import lancedb

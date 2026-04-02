@@ -1,3 +1,4 @@
+# TODO: Refactor this script if it is still usefull, or delete otherwise
 import os
 from pathlib import Path
 
@@ -22,10 +23,6 @@ def prepare_catalog_data(
         "--partition-col",
         "-p",
         help="Columns to partition by. Pass multiple times for nested partitions",
-    ),
-    *,
-    partition: bool = typer.Option(
-        True, help="Run partitioning after creating parquet"
     ),
 ):
     """
@@ -79,68 +76,60 @@ def prepare_catalog_data(
     logger.info(f"Total rows processed: {query_job.total_bytes_processed:,} bytes")
 
     # 3. Run partitioning if requested
-    if partition:
-        logger.info("Starting partitioning...")
-        logger.info(f"Target partition columns: {partition_cols}")
+    logger.info("Starting partitioning...")
+    logger.info(f"Target partition columns: {partition_cols}")
 
-        output_base = f"gs://mlflow-bucket-{gcp_env}/streamlit_data/chatbot_edito/offers_{env}_partitioned"
+    output_base = f"gs://mlflow-bucket-{gcp_env}/streamlit_data/chatbot_edito/offers_{env}_partitioned"
 
-        try:
-            # Read source parquet
-            logger.info(f"Reading source parquet: {output_path}")
-            df = pl.read_parquet(output_path)
-            logger.info(f"Loaded {len(df):,} rows.")
-            logger.info(f"Columns available in source: {df.columns}")
+    # Read source parquet
+    logger.info(f"Reading source parquet: {output_path}")
+    df = pl.read_parquet(output_path)
+    logger.info(f"Loaded {len(df):,} rows.")
+    logger.info(f"Columns available in source: {df.columns}")
 
-            # Check required columns
-            required_cols = [*list(partition_cols), "item_id"]
-            missing = [col for col in required_cols if col not in df.columns]
-            if missing:
-                raise ValueError(
-                    f"Missing required columns: {missing}. Available: {df.columns}"
-                )
+    # Check required columns
+    required_cols = [*list(partition_cols), "item_id"]
+    missing = [col for col in required_cols if col not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Missing required columns: {missing}. Available: {df.columns}"
+        )
 
-            # Sort for optimal performance
-            logger.info("Sorting data...")
-            df = df.sort(required_cols)
+    # Sort for optimal performance
+    logger.info("Sorting data...")
+    df = df.sort(required_cols)
 
-            # Write directly to GCS using PyArrow (HIVE FORMAT)
-            logger.info(f"Writing partitioned parquet directly to {output_base}...")
-            gcs = GcsFileSystem()
-            gcs_target_path = output_base.replace("gs://", "")
+    # Write directly to GCS using PyArrow (HIVE FORMAT)
+    logger.info(f"Writing partitioned parquet directly to {output_base}...")
+    gcs = GcsFileSystem()
+    gcs_target_path = output_base.replace("gs://", "")
 
-            table = df.to_arrow()
-            hive_partitioning = ds.partitioning(
-                table.select(partition_cols).schema,
-                flavor="hive",
-            )
+    table = df.to_arrow()
+    hive_partitioning = ds.partitioning(
+        table.select(partition_cols).schema,
+        flavor="hive",
+    )
 
-            ds.write_dataset(
-                table,
-                base_dir=gcs_target_path,
-                filesystem=gcs,
-                format="parquet",
-                partitioning=hive_partitioning,
-                existing_data_behavior="overwrite_or_ignore",
-            )
-            logger.info("✅ Direct GCS write completed!")
+    ds.write_dataset(
+        table,
+        base_dir=gcs_target_path,
+        filesystem=gcs,
+        format="parquet",
+        partitioning=hive_partitioning,
+        existing_data_behavior="overwrite_or_ignore",
+    )
+    logger.info("✅ Direct GCS write completed!")
 
-            # Verify on GCS
-            logger.info("Verifying files on GCS...")
-            row_count = (
-                pl.scan_parquet(f"{output_base}/**/*.parquet", hive_partitioning=True)
-                .select(pl.len())
-                .collect()
-                .item()
-            )
-            logger.info(f"✅ Verified {row_count:,} rows on GCS.")
-            logger.success("Partitioning completed!")
-
-        except Exception as e:
-            logger.error(f"Partitioning failed: {e}")
-            raise
-    else:
-        logger.info("Skipping partitioning (--no-partition was set)")
+    # Verify on GCS
+    logger.info("Verifying files on GCS...")
+    row_count = (
+        pl.scan_parquet(f"{output_base}/**/*.parquet", hive_partitioning=True)
+        .select(pl.len())
+        .collect()
+        .item()
+    )
+    logger.info(f"✅ Verified {row_count:,} rows on GCS.")
+    logger.success("Partitioning completed!")
 
     logger.success("Catalog data preparation complete!")
 
