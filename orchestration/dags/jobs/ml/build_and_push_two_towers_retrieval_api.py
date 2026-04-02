@@ -17,6 +17,8 @@ from common.operators.gce import (
 )
 from common.utils import get_airflow_schedule
 
+from jobs.crons import SCHEDULE_DICT
+
 default_args = {
     "start_date": datetime(2022, 11, 30),
     "on_failure_callback": on_failure_vm_callback,
@@ -49,14 +51,12 @@ gce_params = {
     "container_worker": {"dev": "1", "stg": "1", "prod": "1"},
 }
 
-schedule_dict = {"prod": "0 8 * * *", "dev": "0 8 * * *", "stg": "0 8 * * 3"}
-
 
 with DAG(
     DAG_NAME,
     default_args=default_args,
     description="Custom Building job",
-    schedule_interval=get_airflow_schedule(schedule_dict[ENV_SHORT_NAME]),
+    schedule_interval=get_airflow_schedule(SCHEDULE_DICT[DAG_NAME][ENV_SHORT_NAME]),
     catchup=False,
     dagrun_timeout=timedelta(minutes=1440),
     user_defined_macros=macros.default,
@@ -102,7 +102,7 @@ with DAG(
         instance_name="{{ params.instance_name }}",
         instance_type="{{ params.instance_type }}",
         retries=2,
-        labels={"job_type": "ml", "dag_name": DAG_NAME},
+        labels={"dag_name": DAG_NAME},
     )
 
     fetch_install_code = InstallDependenciesOperator(
@@ -120,14 +120,14 @@ with DAG(
             task_id="create_vector_database",
             instance_name="{{ params.instance_name }}",
             base_dir="{{ params.base_dir }}",
-            command="python create_vector_database.py dummy-database ",
+            command="PYTHONPATH=. uv run cli/create_vector_database.py dummy-database ",
         )
     else:
         create_vector_database = SSHGCEOperator(
             task_id="create_vector_database",
             instance_name="{{ params.instance_name }}",
             base_dir="{{ params.base_dir }}",
-            command="python create_vector_database.py default-database "
+            command="PYTHONPATH=. uv run cli/create_vector_database.py default-database "
             "--source-experiment-name {{ params.source_experiment_name }} "
             "--source-artifact-uri {{  params.source_artifact_uri }} "
             "--source-run-id {{ params.source_run_id }} ",
@@ -137,7 +137,7 @@ with DAG(
         task_id="build_and_push_docker_image",
         instance_name="{{ params.instance_name }}",
         base_dir="{{ params.base_dir }}",
-        command="python build_and_push_docker_image.py "
+        command="PYTHONPATH=. uv run cli/build_and_push_docker_image.py "
         "--base-serving-container-path {{ params.artifact_registry_base_path }} "
         "--experiment-name {{ params.experiment_name }} "
         "--model-name {{ params.model_name }} "
