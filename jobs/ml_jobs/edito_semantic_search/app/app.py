@@ -1,11 +1,11 @@
-from flask import Flask
-from flask_cors import CORS
 from loguru import logger
+from quart import Quart
+from quart_cors import cors
 
 from app.routes import api
 
-app = Flask(__name__)
-CORS(app)
+app = Quart(__name__)
+app = cors(app, allow_origin="*")
 
 app.register_blueprint(api)
 

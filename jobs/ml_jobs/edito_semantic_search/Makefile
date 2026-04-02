@@ -1,7 +1,7 @@
 ##################       Dev       ##################
 install:
 	uv sync --no-dev
-	cp .env.template .env
+	[ -f .env ] || cp .env.template .env # only if .env doesn't exist, to avoid overwriting existing .env
 
 test:
 	PYTHONPATH=. pytest tests

@@ -1,8 +1,8 @@
 import time
 
 import pandas as pd
-from flask import Blueprint, Response, jsonify, request
 from loguru import logger
+from quart import Blueprint, Response, jsonify, request
 
 from app.constants import (
     DATABASE_URI,
@@ -75,7 +75,7 @@ async def predict():
     # Warning instances Handling
     try:
         ### Input parsing and validation
-        data = request.get_json()
+        data = await request.get_json()
         start_time = time.time()
         logger.info(f"Received prediction request: {data}")
         if not data:
