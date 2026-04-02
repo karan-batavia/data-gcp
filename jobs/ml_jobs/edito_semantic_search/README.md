@@ -47,7 +47,8 @@ Start the Flask API server (served via Hypercorn):
 make start_app
 ```
 
-This will run the API on `0.0.0.0:8085` by default. You can access endpoints
+> * It will use the .env file values to determine in which environment it is run.
+> * This will run the API on `0.0.0.0:8085` by default.
 
 ## Running Tests
 
@@ -71,7 +72,22 @@ This will start Streamlit defined in `streamlits/st_visualise_api_response.py`.
 
 ##  Deployment
 
+### Build the container API
+
 The API is containerized using Docker. To build and push the container
 
 ```bash
-# Build the Docker image
+make build_and_push_docker_image
+```
+
+> It will use the .env file values to determine in which environment it is run.
+
+### Deploy the containerized API to VertexAI
+
+The containerized API can be deployed to VertexAI as an online prediction endpoint.
+
+```bash
+make deploy_model
+```
+
+> It will use the .env file values to determine in which environment it is run.
