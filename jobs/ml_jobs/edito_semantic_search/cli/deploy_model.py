@@ -67,7 +67,7 @@ class ModelHandler:
         self.model_params = model_params
         self.endpoint_params = endpoint_params
 
-    def upload_model(self):
+    def upload_model(self) -> aiplatform.Model:
         experiment_name = self.model_params.experiment_name
         print("Uploading model to Vertex AI model registery...")
         print(f"Search for existing model...  {experiment_name}")
@@ -100,7 +100,7 @@ class ModelHandler:
         )
         return model
 
-    def deploy_model(self, model):
+    def deploy_model(self, model: aiplatform.Model) -> None:
         enpoint_name = self.endpoint_params.endpoint_name
         print("Deploying model to endpoint...")
         print(f"Search for existing endoipoint...  {enpoint_name}")

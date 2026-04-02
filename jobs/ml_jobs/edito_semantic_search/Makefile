@@ -1,5 +1,6 @@
-install-api:
+install:
 	uv sync --no-dev
+	cp .env.template .env
 streamlit:
 	PYTHONPATH=. streamlit run streamlits/st_visualise_api_response.py
 start_app:

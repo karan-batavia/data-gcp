@@ -7,7 +7,7 @@ This microservice provides a semantic search API and related tools for editorial
 1. **Install dependencies**
 
 ```bash
-make install-api
+make install
 ```
 
 ## Data Preparation
@@ -32,6 +32,7 @@ python prepare_catalog_data.py --env dev -p offer_category_id -p venue_departmen
 ```
 
 **What it does:**
+
 1. Executes SQL query from `sql/chatbot_catalog_offers.sql`
 2. Exports results to GCS as parquet: `gs://mlflow-bucket-{env}/streamlit_data/chatbot_edito/offers_{env}/`
 3. Partitions the data using Hive-style partitioning (default: by `offer_subcategory_id` and `venue_department_code`)
