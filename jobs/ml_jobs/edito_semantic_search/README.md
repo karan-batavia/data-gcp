@@ -67,3 +67,11 @@ make streamlit
 ```
 
 This will start Streamlit defined in `streamlits/st_visualise_api_response.py`.
+
+
+## Deployment
+
+The API is containerized using Docker. To build and push the container
+
+```bash
+# Build the Docker image
