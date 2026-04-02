@@ -3,10 +3,10 @@ from typing import ClassVar
 
 import typer
 from google.cloud import aiplatform
+from loguru import logger
 
 from constants import (
     ENDPOINT_NAME,
-    ENV_SHORT_NAME,
     EXPERIMENT_NAME,
     GCP_PROJECT,
     INSTANCE_TYPE,
@@ -219,13 +219,21 @@ def main() -> None:
         traffic_percentage=int(traffic_percentage),
     )
     handler = ModelHandler(region, GCP_PROJECT, model_params, endpoint_params)
+
     # Upload new model to registery
     model = handler.upload_model()
+    logger.info(f"Model uploaded to VertexAI registry: {model.resource_name}")
+
     # Deploy it to an endpoint
-    handler.deploy_model(model)
-    # Delete old model versions
-    max_model_versions = 5 if ENV_SHORT_NAME == "prod" else 1
-    handler.clean_model_versions(max_model_versions)
+    logger.warning(
+        "Skipping model deployment because we lack the right permissions "
+        "on the service account. Please deploy manually for now."
+    )
+    # handler.deploy_model(model)
+
+    # # Delete old model versions
+    # max_model_versions = 5 if ENV_SHORT_NAME == "prod" else 1
+    # handler.clean_model_versions(max_model_versions)
 
 
 if __name__ == "__main__":
