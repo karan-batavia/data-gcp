@@ -19,7 +19,7 @@ with open("app/llm/action_prompt.txt", encoding="utf-8") as f:
     ACTION_PROMPT = f.read().strip()
 
 # Lazy-initialized to avoid binding httpx async connections to an event loop
-# that doesn't yet exist at import time (before Hypercorn starts its loop).
+# that doesn't yet exist at import time (before Uvicorn starts its loop).
 _cached_agent: Agent | None = None
 
 
@@ -28,9 +28,9 @@ def _get_agent() -> Agent:
     Lazily build and cache the Pydantic AI Agent on first use.
 
     GoogleProvider/httpx binds to the current asyncio event loop on creation.
-    If created at import time (before Hypercorn), the first async request fails
+    If created at import time (before Uvicorn), the first async request fails
     with "Event loop is closed". Deferring creation to the first call guarantees
-    we use Hypercorn's running event loop.
+    we use Uvicorn's running event loop.
     """
     global _cached_agent
     if _cached_agent is not None:
@@ -132,7 +132,7 @@ async def llm_thematic_filtering(
 
     start_time = time.time()
 
-    # 2. Run LLM (async — works natively with Hypercorn's event loop)
+    # 2. Run LLM (async — works natively with Uvicorn's event loop)
     agent = _get_agent()
     llm_result = await agent.run(prompt)
     elapsed_time = time.time() - start_time

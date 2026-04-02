@@ -1,15 +1,23 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-from quart import Quart
-from quart_cors import cors
 
 from app.routes import api
 
-app = Quart(__name__)
-app = cors(app, allow_origin="*")
+app = FastAPI()
 
-app.register_blueprint(api)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(api)
 
 
 if __name__ == "__main__":
+    import uvicorn
+
     logger.info("startup", extra={"event": "startup", "response": "ready"})
-    app.run()
+    uvicorn.run(app, host="0.0.0.0", port=8080)

@@ -1,8 +1,9 @@
 import time
 
 import pandas as pd
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse, Response
 from loguru import logger
-from quart import Blueprint, Response, jsonify, request
 
 from app.constants import (
     DATABASE_URI,
@@ -21,7 +22,7 @@ from app.models.validators import (
 from app.post_process.panachage import panachage_sort
 from app.search.client import SearchClient
 
-api = Blueprint("api", __name__)
+api = APIRouter()
 
 search_client = SearchClient(
     database_uri=DATABASE_URI, vector_table=VECTOR_TABLE, scalar_table=SCALAR_TABLE
@@ -50,7 +51,7 @@ def _startup_warmup():
             # NOTE: LLM warmup is skipped intentionally.
             # Using asyncio.run() here would create and close a temporary event loop,
             # causing the GoogleProvider/httpx client to cache a reference to that
-            # closed loop. When Hypercorn later serves requests on its own loop,
+            # closed loop. When Uvicorn later serves requests on its own loop,
             # the agent would fail with "Event loop is closed".
             # The agent and model are already initialized at import time.
             logger.info("LLM warmup skipped (agent initialized at import time)")
@@ -63,28 +64,28 @@ def _startup_warmup():
 _startup_warmup()
 
 
-@api.route("/isalive", methods=["GET"])
+@api.get("/isalive")
 def is_alive() -> Response:
     """Health check endpoint."""
-    return Response(status=200)
+    return Response(status_code=200)
 
 
-@api.route("/predict", methods=["POST"])
-async def predict():
+@api.post("/predict")
+async def predict(data: dict):
     """Predict endpoint."""
     # Warning instances Handling
     try:
         ### Input parsing and validation
-        data = await request.get_json()
         start_time = time.time()
         logger.info(f"Received prediction request: {data}")
-        if not data:
-            raise ValueError("Invalid JSON body")
         instances = data.get("instances")
         if not instances or not isinstance(instances, list):
-            return jsonify(
-                {"error": "Invalid request format: 'instances' list is required"}
-            ), 400
+            return JSONResponse(
+                content={
+                    "error": "Invalid request format: 'instances' list is required"
+                },
+                status_code=400,
+            )
         prediction_request = PredictionRequest(**instances[0])
         # Here we decide to either do vector search or LLM filtering
         # When Vector search is disabled, we directly go to scalar search with filters
@@ -126,7 +127,7 @@ async def predict():
                     f"Prediction completed in {time.time() - start_time:.2f} seconds "
                     f"with {len(search_results.offers)} offers returned"
                 )
-                return jsonify(PredictionResult(predictions=search_results).dict()), 200
+                return PredictionResult(predictions=search_results).model_dump()
             item_ids = llm_df["item_id"].tolist()
 
         # Here we handle filters to perform scalar search
@@ -209,7 +210,7 @@ async def predict():
                     f"Prediction completed in {time.time() - start_time:.2f} seconds "
                     f"with {len(search_results.offers)} offers returned"
                 )
-                return jsonify(PredictionResult(predictions=search_results).dict()), 200
+                return PredictionResult(predictions=search_results).model_dump()
 
             # Post-processing: Panachage sorting
             prediction_result_df.drop_duplicates(subset=["offer_id"], inplace=True)
@@ -225,7 +226,7 @@ async def predict():
                 f"Prediction completed in {time.time() - start_time:.2f} seconds "
                 f"with {len(search_results.offers)} offers returned"
             )
-            return jsonify(PredictionResult(predictions=search_results).dict()), 200
+            return PredictionResult(predictions=search_results).model_dump()
         else:
             logger.warning("No offers found in scalar search")
             search_results = SearchResult(offers=[])
@@ -233,9 +234,10 @@ async def predict():
                 f"Prediction completed in {time.time() - start_time:.2f} seconds "
                 f"with {len(search_results.offers)} offers returned"
             )
-            return jsonify(PredictionResult(predictions=search_results).dict()), 200
+            return PredictionResult(predictions=search_results).model_dump()
     except Exception as e:
         logger.error(f"Error during prediction: {e}")
-        return jsonify(
-            {"error": "An error occurred during prediction", "details": str(e)}
-        ), 500
+        return JSONResponse(
+            content={"error": "An error occurred during prediction", "details": str(e)},
+            status_code=500,
+        )
