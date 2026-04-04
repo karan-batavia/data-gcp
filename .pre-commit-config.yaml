@@ -29,6 +29,14 @@ repos:
         types: [python]
         stages: [pre-commit]
         additional_dependencies: [ruff==0.5.7]
+      - id: uv-secure-fix
+        name: Fixing fixable CVEs/security issues (auto)
+        verbose: true
+        stages: [manual]
+        language: python
+        entry: uv-secure --no-check-uv-tool --ignore-unfixed --format json | jq -r '[.files[].dependencies[] | select(.vulns | length > 0) | "--upgrade-package \"\(.name)>=\(.vulns[0].fix_versions[0])\""] | if length > 0 then "uv lock " + join(" ") else empty end' | bash
+        additional_dependencies: [uv-secure==0.17.0]
+
   - repo: https://github.com/tconbeer/sqlfmt
     rev: v0.29.0
     hooks:
@@ -60,6 +68,7 @@ repos:
         # uv-secure exits with non-zero code if it finds vulnerabilities but we don't want
         #   to block commits in that case, so we ignore the exit code
         entry: bash -c 'uv-secure "$@" || true' --
+
 
   # TODO: uncomment once netskope problem is fixed
   # - repo: https://github.com/DavidAnson/markdownlint-cli2

@@ -54,7 +54,6 @@ default-groups = ["airflow", "dbt", 'dev', 'docs']
 [tool.uv.workspace]
 exclude = ["jobs"] # allow to init new uv projects in these folders without --no-workspace flag
 
-
 ## ruff
 [tool.ruff]
 target-version = 'py312'
