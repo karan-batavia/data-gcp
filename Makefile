@@ -177,6 +177,15 @@ sqlfmt_fix:
 sqlfmt_check:
 	uv run sqlfmt --check orchestration/dags --exclude "**/.venv/**" --exclude "**/venv/**"  --exclude "orchestration/dags/data_gcp_dbt/target/**" --exclude "**/orchestration/dags/dependencies/applicative_database/sql/raw/**" --exclude "**/orchestration/dags/data_gcp_dbt/snapshots/**"
 
+install_uv_secure_fix:
+	@if echo "$$XDG_DATA_HOME" | grep -q snap 2>/dev/null; then \
+		echo "Snap environment detected — overriding uv tool paths..."; \
+		XDG_DATA_HOME=$(HOME)/.local/share UV_TOOL_BIN_DIR=$(HOME)/.local/bin \
+			uv tool install --force ./automations/uv-secure-fix; \
+	else \
+		uv tool install --force ./automations/uv-secure-fix; \
+	fi
+
 precommit_docs_run:
 	pre-commit run --all-files --config .pre-commit-ci-dbt-config.yaml
 
