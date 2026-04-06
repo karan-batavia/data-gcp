@@ -33,9 +33,9 @@ repos:
         name: Fixing fixable CVEs/security issues (auto)
         verbose: true
         stages: [manual]
-        language: python
-        entry: uv-secure --no-check-uv-tool --ignore-unfixed --format json | jq -r '[.files[].dependencies[] | select(.vulns | length > 0) | "--upgrade-package \"\(.name)>=\(.vulns[0].fix_versions[0])\""] | if length > 0 then "uv lock " + join(" ") else empty end' | bash
-        additional_dependencies: [uv-secure==0.17.0]
+        language: system
+        pass_filenames: false
+        entry: uv run python automations/uv_secure_fix.py
 
   - repo: https://github.com/tconbeer/sqlfmt
     rev: v0.29.0
