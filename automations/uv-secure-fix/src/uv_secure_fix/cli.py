@@ -1,36 +1,27 @@
 """Auto-fix known CVEs by upgrading vulnerable locked dependencies.
 
-Runs `uv-secure` on every `uv.lock` found in the repo, parses the JSON output,
-and calls `uv lock --upgrade-package "<pkg>>=<fix_version>"` for each fixable
-vulnerability.
+Runs ``uv-secure`` on every ``uv.lock`` found in the repo, parses the JSON
+output, and calls ``uv lock --upgrade-package "<pkg>>=<fix_version>"`` for each
+fixable vulnerability.
 
-Works from **any directory** inside the repository — it resolves the repo root
-automatically via `git rev-parse --show-toplevel`.
+Works from **any directory** inside a git repository — it resolves the repo root
+automatically via ``git rev-parse --show-toplevel``.
 """
+
+from __future__ import annotations
 
 import json
 import subprocess
 import sys
 
 
-def _repo_root() -> str:
-    """Return the absolute path of the git repository root."""
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return result.stdout.strip()
-
-
-def _run_uv_secure(cwd: str) -> dict:
+def _run_uv_secure() -> dict:
     """Run uv-secure and return parsed JSON output."""
     result = subprocess.run(
         ["uv-secure", "--no-check-uv-tool", "--ignore-unfixed", "--format", "json"],
         capture_output=True,
         text=True,
-        cwd=cwd,
+        # cwd=cwd,
     )
     if not result.stdout.strip():
         return {}
@@ -47,7 +38,8 @@ def _run_uv_secure(cwd: str) -> dict:
 def _collect_upgrade_packages(data: dict) -> list[str]:
     """Extract --upgrade-package arguments from uv-secure JSON output.
 
-    Mirrors the jq logic:
+    Mirrors the jq logic::
+
         .files[].dependencies[]
         | select(.vulns | length > 0)
         | "--upgrade-package \"<name>>=<fix_version>\""
@@ -66,10 +58,9 @@ def _collect_upgrade_packages(data: dict) -> list[str]:
 
 
 def main() -> int:
-    repo = _repo_root()
-    print(f"Repository root: {repo}")
+    """Entry point for the ``uv-secure-fix`` CLI tool."""
 
-    data = _run_uv_secure(cwd=repo)
+    data = _run_uv_secure()
     if not data:
         print(
             "No vulnerabilities found (or uv-secure returned empty output). Nothing to do."
@@ -90,7 +81,7 @@ def main() -> int:
         cmd.extend(["--upgrade-package", pkg])
 
     print(f"\nRunning: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=repo)
+    result = subprocess.run(cmd)
     return result.returncode
 
 

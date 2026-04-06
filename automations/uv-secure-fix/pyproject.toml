@@ -1,0 +1,13 @@
+[project]
+name = "uv-secure-fix"
+version = "0.1.1"
+description = "Auto-fix known CVEs by upgrading vulnerable locked dependencies via uv-secure."
+requires-python = ">=3.10"
+dependencies = ["uv-secure>=0.17.0"]
+
+[project.scripts]
+uv-secure-fix = "uv_secure_fix.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

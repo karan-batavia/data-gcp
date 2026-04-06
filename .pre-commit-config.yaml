@@ -35,7 +35,7 @@ repos:
         stages: [manual]
         language: system
         pass_filenames: false
-        entry: uv run python automations/uv_secure_fix.py
+        entry: uv-secure-fix
 
   - repo: https://github.com/tconbeer/sqlfmt
     rev: v0.29.0

@@ -177,9 +177,6 @@ sqlfmt_fix:
 sqlfmt_check:
 	uv run sqlfmt --check orchestration/dags --exclude "**/.venv/**" --exclude "**/venv/**"  --exclude "orchestration/dags/data_gcp_dbt/target/**" --exclude "**/orchestration/dags/dependencies/applicative_database/sql/raw/**" --exclude "**/orchestration/dags/data_gcp_dbt/snapshots/**"
 
-uv_secure_fix:
-	uv run python automations/uv_secure_fix.py
-
 precommit_docs_run:
 	pre-commit run --all-files --config .pre-commit-ci-dbt-config.yaml
 
