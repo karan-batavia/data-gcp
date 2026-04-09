@@ -3,19 +3,14 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.models import Param
 from airflow.operators.empty import EmptyOperator
-from airflow.providers.google.cloud.operators.bigquery import (
-    BigQueryInsertJobOperator,
-)
 from common import macros
 from common.alerts import SLACK_ALERT_CHANNEL_WEBHOOK_TOKEN
 from common.alerts.ml_training import create_algo_training_slack_block
 from common.callback import on_failure_vm_callback
 from common.config import (
-    BIGQUERY_ML_COMPLIANCE_DATASET,
     DAG_FOLDER,
     DAG_TAGS,
     ENV_SHORT_NAME,
-    GCP_PROJECT_ID,
     ML_BUCKET_TEMP,
     MLFLOW_URL,
 )
@@ -44,9 +39,9 @@ train_params = {
 gce_params = {
     "instance_name": f"algo-training-offer-compliance-{ENV_SHORT_NAME}",
     "instance_type": {
-        "dev": "n1-standard-2",
+        "dev": "n1-standard-8",
         "stg": "n1-highmem-8",
-        "prod": "n1-highmem-32",
+        "prod": "n1-highmem-8",
     },
 }
 
@@ -87,28 +82,9 @@ with DAG(
             default=gce_params["instance_type"][ENV_SHORT_NAME], type="string"
         ),
         "instance_name": Param(default=gce_params["instance_name"], type="string"),
-        "run_name": Param(default="default", type=["string", "null"]),
     },
 ) as dag:
     start = EmptyOperator(task_id="start", dag=dag)
-
-    import_offer_as_parquet = BigQueryInsertJobOperator(
-        project_id=GCP_PROJECT_ID,
-        task_id="import_offer_as_parquet",
-        configuration={
-            "extract": {
-                "sourceTable": {
-                    "projectId": GCP_PROJECT_ID,
-                    "datasetId": BIGQUERY_ML_COMPLIANCE_DATASET,
-                    "tableId": "training_data_offer",
-                },
-                "compression": None,
-                "destinationUris": f"{dag_config['STORAGE_PATH']}/compliance_raw_data/data-*.parquet",
-                "destinationFormat": "PARQUET",
-            }
-        },
-        dag=dag,
-    )
 
     gce_instance_start = StartGCEOperator(
         task_id="gce_start_task",
@@ -127,64 +103,23 @@ with DAG(
         retries=2,
     )
 
-    preprocess = SSHGCEOperator(
-        task_id="preprocess",
-        instance_name="{{ params.instance_name }}",
-        base_dir=dag_config["BASE_DIR"],
-        environment=dag_config,
-        command="mkdir -p img && PYTHONPATH=. python preprocess.py "
-        "--config-file-name {{ params.config_file_name }} "
-        "--input-dataframe-file-name compliance_raw_data "
-        "--output-dataframe-file-name compliance_clean_data ",
-        dag=dag,
+    # Model training is skip since data has shifted a lot and we are not sure this model is still used
+    skip_catboost_training_operator = EmptyOperator(
+        task_id="skip_catboost_training", dag=dag
     )
 
-    split_data = SSHGCEOperator(
-        task_id="split_data",
-        instance_name="{{ params.instance_name }}",
-        base_dir=dag_config["BASE_DIR"],
-        environment=dag_config,
-        command="PYTHONPATH=. python split_data.py "
-        "--clean-table-name compliance_clean_data "
-        "--training-table-name compliance_training_data "
-        "--validation-table-name compliance_validation_data ",
-        dag=dag,
-    )
-
-    train = SSHGCEOperator(
-        task_id="train",
-        instance_name="{{ params.instance_name }}",
-        base_dir=dag_config["BASE_DIR"],
-        environment=dag_config,
-        command="PYTHONPATH=. python train.py "
-        "--model-name {{ params.model_name }} "
-        "--config-file-name {{ params.config_file_name }} "
-        "--training-table-name compliance_training_data "
-        "--run-name {{ params.run_name }}",
-        dag=dag,
-    )
-
-    evaluate = SSHGCEOperator(
-        task_id="evaluate",
-        instance_name="{{ params.instance_name }}",
-        base_dir=dag_config["BASE_DIR"],
-        environment=dag_config,
-        command="PYTHONPATH=. python evaluate.py "
-        "--model-name {{ params.model_name }} "
-        "--config-file-name {{ params.config_file_name }} "
-        "--validation-table-name compliance_validation_data "
-        "--run-name {{ params.run_name }}",
-        dag=dag,
-    )
-
+    # TODO: Remove --catboost-model-tag once Catboost training is On
+    # TODO: Remove --api-model-alias once migration is Done In Compliance API (sentence transformer update)
     package_api_model = SSHGCEOperator(
         task_id="package_api_model",
         instance_name="{{ params.instance_name }}",
         base_dir=dag_config["BASE_DIR"],
         environment=dag_config,
-        command="PYTHONPATH=. python package_api_model.py "
+        command="PYTHONPATH=. uv run python package_api_model.py "
         "--model-name {{ params.model_name }} "
-        "--config-file-name {{ params.config_file_name }} ",
+        "--config-file-name {{ params.config_file_name }} "
+        "--catboost-model-tag '@healthy' "
+        "--api-model-alias healthy",
         dag=dag,
     )
 
@@ -202,13 +137,9 @@ with DAG(
 
     (
         start
-        >> import_offer_as_parquet
         >> gce_instance_start
         >> fetch_install_code
-        >> preprocess
-        >> split_data
-        >> train
-        >> evaluate
+        >> skip_catboost_training_operator
         >> package_api_model
         >> gce_instance_stop
         >> send_slack_notif_success

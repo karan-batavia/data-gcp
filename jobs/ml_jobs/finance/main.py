@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta
+
 import mlflow
+import pandas as pd
 import typer
 from loguru import logger
 
@@ -25,21 +28,19 @@ def main(
     ),
     train_start_date: str = typer.Option(
         ...,
-        help="""In-sample start date (YYYY-MM-DD).
-        If you are using a prophet config with changepoints,
-        ensure this date is before the first changepoint date.""",
+        help="In-sample start date (YYYY-MM-DD). Must be before first changepoint.",
     ),
-    backtest_start_date: str = typer.Option(
+    execution_date: str = typer.Option(
         ...,
-        help="""Out-of-sample start date (YYYY-MM-DD).
-         If you are using a prophet config with changepoints,
-         ensure this date is after the last changepoint date.""",
+        help="DAG execution date (YYYY-MM-DD). Used to compute sliding window dates.",
     ),
-    backtest_end_date: str = typer.Option(
-        ..., help="Out-of-sample end date (YYYY-MM-DD)."
+    backtest_days: int = typer.Option(
+        120,
+        help="Number of days for backtest period (counted back from execution_date).",
     ),
-    forecast_horizon_date: str = typer.Option(
-        ..., help="Forecast horizon end date (YYYY-MM-DD)."
+    forecast_days: int = typer.Option(
+        365,
+        help="Number of days for forecast horizon",
     ),
     experiment_name: str = typer.Option(..., help="MLflow experiment name."),
     dataset: str = typer.Option(
@@ -47,39 +48,48 @@ def main(
     ),
 ) -> None:
     """
-    Generic main function to train, evaluate, and forecast using any supported model
-    class.
+    Train, evaluate, and forecast using a sliding window approach.
 
-    Args:
-        model_type: Type of model to use. E.g., 'prophet'.
-                    Must be implemented in get_model_class().
-        model_name: Name of the model configuration/instance.
-        train_start_date: In-sample start date (YYYY-MM-DD).
-        backtest_start_date: Out-of-sample start date (YYYY-MM-DD).
-        backtest_end_date: Out-of-sample end date (YYYY-MM-DD).
-        forecast_horizon_date: Forecast horizon end date (YYYY-MM-DD).
-        experiment_name: MLflow experiment name.
-        dataset: BigQuery dataset containing the training data and forecast results.
+    Dates are computed from execution_date:
+    - backtest_start = execution_date - backtest_days
+    - backtest_end = execution_date - 1 day
+    - forecast_horizon = execution_date + forecast_days
+
+    Changepoints outside the training period are automatically filtered.
     """
-    experiment, run_name = setup_mlflow(experiment_name, model_type, model_name)
+    # Compute dates from execution_date
+    exec_date = datetime.strptime(execution_date, "%Y-%m-%d")
+    backtest_start_date = (exec_date - timedelta(days=backtest_days)).strftime(
+        "%Y-%m-%d"
+    )
+    backtest_end_date = (exec_date - timedelta(days=1)).strftime("%Y-%m-%d")
+    forecast_horizon_date = (exec_date + timedelta(days=forecast_days)).strftime(
+        "%Y-%m-%d"
+    )
 
+    experiment, run_name = setup_mlflow(experiment_name, model_type, model_name)
     with mlflow.start_run(experiment_id=experiment.experiment_id, run_name=run_name):
         mlflow.set_tag("model_type", model_type)
         mlflow.set_tag("model_name", model_name)
+
+        # Log sliding window parameters
+        mlflow.log_params(
+            {
+                "train_start_date": train_start_date,
+                "backtest_start_date": backtest_start_date,
+                "backtest_end_date": backtest_end_date,
+                "forecast_horizon_date": forecast_horizon_date,
+            }
+        )
 
         # 1. Initialize Model
         logger.info(f"Initializing {model_type} model for {model_name}")
         ModelClass = get_model_class(model_type)
         model = ModelClass(model_name)
 
-        # Log config parameters if available
-        if model.config is not None and hasattr(model.config, "model_dump"):
-            mlflow.log_params(model.config.model_dump())
-
         # Log config file if available
         if model.config_path and model.config_path.exists():
             mlflow.log_artifact(str(model.config_path), artifact_path="config")
-            logger.info(f"Logged config file: {model.config_path}")
 
         # 2. Prepare Data
         model.prepare_data(
@@ -96,8 +106,14 @@ def main(
         backtest_metrics = model.run_backtest()
         mlflow.log_metrics(backtest_metrics)
 
-        # 5. Future Forecast
-        forecast_df = model.predict(backtest_end_date, forecast_horizon_date)
+        # 5. Future Forecast - start from 1st of month after last data point
+        last_data_date = model.data_split.backtest["ds"].max()
+        forecast_start = (last_data_date + pd.offsets.MonthBegin(1)).strftime(
+            "%Y-%m-%d"
+        )
+        logger.info(f"Last data: {last_data_date}, forecast starts: {forecast_start}")
+
+        forecast_df = model.predict(forecast_start, forecast_horizon_date)
 
         # Save forecast to generic artifact
         forecast_file = f"{run_name}_forecast.xlsx"
@@ -106,30 +122,25 @@ def main(
         logger.info(f"Forecast saved to {forecast_file}")
 
         # 6. Monthly Forecast Aggregation
-        try:
-            monthly_forecast_df = model.aggregate_to_monthly(forecast_df)
-            monthly_forecast_file = f"{run_name}_monthly_forecast.xlsx"
-            monthly_forecast_df.to_excel(monthly_forecast_file, index=False)
-            mlflow.log_artifact(monthly_forecast_file, artifact_path="forecasts")
-            logger.info(f"Monthly Forecast saved to {monthly_forecast_file}")
+        monthly_forecast_df = model.aggregate_to_monthly(forecast_df)
+        monthly_forecast_file = f"{run_name}_monthly_forecast.xlsx"
+        monthly_forecast_df.to_excel(monthly_forecast_file, index=False)
+        mlflow.log_artifact(monthly_forecast_file, artifact_path="forecasts")
+        logger.info(f"Monthly Forecast saved to {monthly_forecast_file}")
 
-            # 7. Log to BigQuery
-            logger.info("Logging monthly forecast to BigQuery...")
-            save_forecast_gbq(
-                df=monthly_forecast_df,
-                run_id=mlflow.active_run().info.run_id,
-                experiment_name=experiment_name,
-                run_name=run_name,
-                model_name=model_name,
-                model_type=model_type,
-                table_name="monthly_forecasts",
-                dataset=dataset,
-            )
-            logger.info("Monthly forecast logged to BigQuery successfully")
-        except NotImplementedError:
-            logger.warning(f"Monthly aggregation not implemented for {model_type}")
-        except Exception as e:
-            logger.error(f"Failed to log to BigQuery: {e}")
+        # 7. Log to BigQuery
+        logger.info("Logging monthly forecast to BigQuery...")
+        save_forecast_gbq(
+            df=monthly_forecast_df,
+            run_id=mlflow.active_run().info.run_id,
+            experiment_name=experiment_name,
+            run_name=run_name,
+            model_name=model_name,
+            model_type=model_type,
+            table_name="monthly_forecasts",
+            dataset=dataset,
+        )
+        logger.info("Monthly forecast logged to BigQuery successfully")
 
 
 if __name__ == "__main__":
