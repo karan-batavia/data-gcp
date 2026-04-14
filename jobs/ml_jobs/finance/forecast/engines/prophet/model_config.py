@@ -41,9 +41,9 @@ class DataProcessingConfig(BaseModel):
 
 class EvaluationConfig(BaseModel):
     cv: bool
-    cv_initial: str
-    cv_period: str
-    cv_horizon: str
+    cv_initial: float
+    cv_period: float
+    cv_horizon: float
     freq: str
 
 

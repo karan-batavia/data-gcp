@@ -49,19 +49,11 @@ MODEL_CONFIGS = {
     "prophet_daily_pricing": {
         "model_type": "prophet",
         "model_name": "daily_pricing",
-        "train_start_date": "2022-01-01",
-        "backtest_start_date": "2025-09-01",
-        "backtest_end_date": "2025-12-31",
-        "forecast_horizon_date": "2026-12-31",
         "dataset": f"ml_finance_{ENV_SHORT_NAME}",
     },
     "prophet_weekly_pricing": {
         "model_type": "prophet",
         "model_name": "weekly_pricing",
-        "train_start_date": "2022-01-01",
-        "backtest_start_date": "2025-09-01",
-        "backtest_end_date": "2025-12-31",
-        "forecast_horizon_date": "2026-12-31",
         "dataset": f"ml_finance_{ENV_SHORT_NAME}",
     },
 }
@@ -110,6 +102,22 @@ with DAG(
             type="string",
             description="GCE instance name",
         ),
+        # Model training params
+        "train_start_date": Param(
+            default="2022-01-01",
+            type="string",
+            description="Training start date (YYYY-MM-DD). Must be before first changepoint.",
+        ),
+        "backtest_days": Param(
+            default=120,
+            type="integer",
+            description="Number of days for backtest period (~4 months)",
+        ),
+        "forecast_days": Param(
+            default=365,
+            type="integer",
+            description="Number of days for forecast horizon (1 year)",
+        ),
     },
 ) as dag:
     start = EmptyOperator(task_id="start", dag=dag)
@@ -128,6 +136,7 @@ with DAG(
         base_dir=dag_config["BASE_DIR"],
         branch="{{ params.branch }}",
         retries=2,
+        python_version="3.11",
         dag=dag,
     )
 
@@ -137,20 +146,19 @@ with DAG(
     ) as fit_models_group:
         fit_tasks = []
         for model_config_name, config in MODEL_CONFIGS.items():
-            # Inject config values directly (not from params)
             fit_model = SSHGCEOperator(
                 task_id=f"fit_{model_config_name}",
                 instance_name="{{ params.instance_name }}",
                 base_dir=dag_config["BASE_DIR"],
                 command=f"""
-                    uv run python main.py \
-                        --model-type "{config['model_type']}" \
-                        --model-name "{config['model_name']}" \
-                        --train-start-date "{config['train_start_date']}" \
-                        --backtest-start-date "{config['backtest_start_date']}" \
-                        --backtest-end-date "{config['backtest_end_date']}" \
-                        --forecast-horizon-date "{config['forecast_horizon_date']}" \
-                        --experiment-name "{{ params.experiment_name }}" \
+                    uv run python main.py \\
+                        --model-type "{config['model_type']}" \\
+                        --model-name "{config['model_name']}" \\
+                        --train-start-date "{{{{ params.train_start_date }}}}" \\
+                        --execution-date "{{{{ ds }}}}" \\
+                        --backtest-days {{{{ params.backtest_days }}}} \\
+                        --forecast-days {{{{ params.forecast_days }}}} \\
+                        --experiment-name "{{{{ params.experiment_name }}}}" \\
                         --dataset "{config['dataset']}"
                 """,
             )
