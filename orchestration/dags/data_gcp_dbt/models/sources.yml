@@ -166,6 +166,7 @@ sources:
       - name: subcategories
       - name: tiktok_video_detail
       - name: offer_types
+      - name: population_department
       - name: user_address
       - name: zendesk_macro_usage
       - name: zendesk_ticket
@@ -204,7 +205,6 @@ sources:
       - name: iris_france
       - name: iris_nesting
       - name: macro_rayons
-      - name: population_age_and_department_france_details
       - name: priority_local_authorities
       - name: 2020_insee_iris_socio_demographics
       - name: 2024_insee_qpv
