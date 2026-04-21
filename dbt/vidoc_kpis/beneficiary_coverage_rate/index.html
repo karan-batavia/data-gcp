@@ -765,11 +765,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../cumulative_beneficiaries/" class="md-nav__link">
+      <a href="../ever_credited_beneficiaries/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Cumulative beneficiaries
+    Ever-credited beneficiaries
   </span>
   
 
@@ -9905,8 +9905,8 @@
 <span class="w">        </span><span class="k">SUM</span><span class="p">(</span><span class="n">b</span><span class="p">.</span><span class="n">total_beneficiaries_last_12_months</span><span class="p">),</span>
 <span class="w">        </span><span class="k">SUM</span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="n">total_population_last_12_months</span><span class="p">)</span>
 <span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">coverage_rate</span>
-<span class="k">FROM</span><span class="w"> </span><span class="n">exp_vidoc_beneficiary_coverage</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">b</span>
-<span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">exp_vidoc_population_coverage</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">p</span>
+<span class="k">FROM</span><span class="w"> </span><span class="o">`</span><span class="n">beneficiary_coverage</span><span class="o">`</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">b</span>
+<span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="o">`</span><span class="n">population_coverage</span><span class="o">`</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">p</span>
 <span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">partition_month</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">partition_month</span>
 <span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">b</span><span class="p">.</span><span class="n">department_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">department_code</span>
 <span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="k">CAST</span><span class="p">(</span><span class="n">b</span><span class="p">.</span><span class="n">milestone_age</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">STRING</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">milestone_age</span>

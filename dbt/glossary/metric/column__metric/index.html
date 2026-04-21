@@ -748,11 +748,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../vidoc_kpis/cumulative_beneficiaries/" class="md-nav__link">
+      <a href="../../../vidoc_kpis/ever_credited_beneficiaries/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Cumulative beneficiaries
+    Ever-credited beneficiaries
   </span>
   
 
@@ -9852,7 +9852,7 @@
 The total count of active beneficiaries at the time of calculation. To be included, a user must have a non-expired credit and a remaining amount of credit available for booking.</p>
 
 <p><strong>metrics__total_beneficiaries</strong>: 
-The cumulative number of beneficiaries to date. This metric counts every user who has ever received credit, regardless of whether their credit is currently expired or if they have any remaining balance.</p>
+Number of beneficiaries at the end of the partition month, broken down by <code>age_at_calculation</code>. Counts every user with an active account (or suspended upon user request) who has ever received credit, regardless of whether the credit is currently active, exhausted, or expired. A user's <code>age_at_calculation</code> is recomputed each month, so the same user can appear in different age buckets across partition_months. Not a true running total — users with deactivated accounts drop from the count.</p>
 
 <p><strong>metrics__total_category_booked_beneficiaries</strong>: 
 The number of beneficiaries who made at least one booking in the specific category by the time their credit expired.</p>

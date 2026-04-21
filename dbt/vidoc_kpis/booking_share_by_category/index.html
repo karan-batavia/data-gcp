@@ -765,11 +765,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../cumulative_beneficiaries/" class="md-nav__link">
+      <a href="../ever_credited_beneficiaries/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Cumulative beneficiaries
+    Ever-credited beneficiaries
   </span>
   
 
@@ -9904,8 +9904,8 @@
 <span class="w">        </span><span class="k">SUM</span><span class="p">(</span><span class="n">cat</span><span class="p">.</span><span class="n">total_category_booked_beneficiaries</span><span class="p">),</span>
 <span class="w">        </span><span class="k">SUM</span><span class="p">(</span><span class="n">div</span><span class="p">.</span><span class="n">total_expired_credit_beneficiaries</span><span class="p">)</span>
 <span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">category_booking_rate</span>
-<span class="k">FROM</span><span class="w"> </span><span class="n">exp_vidoc_diversity_by_category</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">cat</span>
-<span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">exp_vidoc_diversity</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">div</span>
+<span class="k">FROM</span><span class="w"> </span><span class="o">`</span><span class="n">diversity_by_category</span><span class="o">`</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">cat</span>
+<span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="o">`</span><span class="n">diversity</span><span class="o">`</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">div</span>
 <span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">deposit_expiration_month</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">div</span><span class="p">.</span><span class="n">deposit_expiration_month</span>
 <span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">department_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">div</span><span class="p">.</span><span class="n">department_code</span>
 <span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">is_in_qpv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">div</span><span class="p">.</span><span class="n">is_in_qpv</span>

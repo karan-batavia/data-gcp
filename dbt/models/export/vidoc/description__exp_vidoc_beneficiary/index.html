@@ -761,11 +761,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../../vidoc_kpis/cumulative_beneficiaries/" class="md-nav__link">
+      <a href="../../../../vidoc_kpis/ever_credited_beneficiaries/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Cumulative beneficiaries
+    Ever-credited beneficiaries
   </span>
   
 
@@ -9775,6 +9775,72 @@ It is designed to be exported to ministry for vidoc visualisation.</p>
 
 <h2 id="table-description">Table Description</h2>
 <p>Each row represents a key indicator calculated for a specific month, geographic aggregation and beneficiary dimensions level.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">name</th>
+<th style="text-align: left;">data_type</th>
+<th style="text-align: left;">description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">partition_month</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">Indicates the first day of the month the KPI refers to.</td>
+</tr>
+<tr>
+<td style="text-align: left;">region_name</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">The official name of the region containing the IRIS area.</td>
+</tr>
+<tr>
+<td style="text-align: left;">region_code</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">The official code of the region (région) containing the IRIS area.</td>
+</tr>
+<tr>
+<td style="text-align: left;">department_name</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">The official name of the department containing the IRIS area.</td>
+</tr>
+<tr>
+<td style="text-align: left;">department_code</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">The official code of the department (département) containing the IRIS area.</td>
+</tr>
+<tr>
+<td style="text-align: left;">age_at_calculation</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">The user's age calculated at the specific reference date of the record (usually the end of the month). Unlike the current age, this value reflects the user's age at the historical point in time represented by the row.</td>
+</tr>
+<tr>
+<td style="text-align: left;">is_in_qpv</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">Boolean. Indicates if the user's registered address is in a priority neighborhood (QPV).</td>
+</tr>
+<tr>
+<td style="text-align: left;">macro_density_label</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">Macro density label of the user's registered address.</td>
+</tr>
+<tr>
+<td style="text-align: left;">micro_density_label</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">String column.Density label (urban, rural) of the user's registered address.</td>
+</tr>
+<tr>
+<td style="text-align: left;">total_actual_beneficiaries</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">The total count of active beneficiaries at the time of calculation. To be included, a user must have a non-expired credit and a remaining amount of credit available for booking.</td>
+</tr>
+<tr>
+<td style="text-align: left;">total_beneficiaries</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">Number of beneficiaries at the end of the partition month, broken down by <code>age_at_calculation</code>. Counts every user with an active account (or suspended upon user request) who has ever received credit, regardless of whether the credit is currently active, exhausted, or expired. A user's <code>age_at_calculation</code> is recomputed each month, so the same user can appear in different age buckets across partition_months. Not a true running total — users with deactivated accounts drop from the count.</td>
+</tr>
+</tbody>
+</table>
 
 
 

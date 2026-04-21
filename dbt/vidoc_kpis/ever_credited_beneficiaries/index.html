@@ -6,13 +6,13 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="How to calculate the cumulative number of young people who have received a pass Culture credit.">
+        <meta name="description" content="How to calculate the number of young people who have ever received a pass Culture credit, whether the credit is still active or not.">
       
       
         <meta name="author" content="Pass Culture Team">
       
       
-        <link rel="canonical" href="https://pass-culture.github.io/data-gcp/dbt/vidoc_kpis/cumulative_beneficiaries/">
+        <link rel="canonical" href="https://pass-culture.github.io/data-gcp/dbt/vidoc_kpis/ever_credited_beneficiaries/">
       
       
         <link rel="prev" href="../">
@@ -26,7 +26,7 @@
     
     
       
-        <title>Cumulative number of beneficiaries - Pass Culture Data Documentation</title>
+        <title>Number of ever-credited beneficiaries - Pass Culture Data Documentation</title>
       
     
     
@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#cumulative-number-of-beneficiaries" class="md-skip">
+        <a href="#number-of-ever-credited-beneficiaries" class="md-skip">
           Skip to content
         </a>
       
@@ -115,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Cumulative number of beneficiaries
+              Number of ever-credited beneficiaries
             
           </span>
         </div>
@@ -776,7 +776,7 @@
           
   
   <span class="md-ellipsis">
-    Cumulative beneficiaries
+    Ever-credited beneficiaries
   </span>
   
 
@@ -787,7 +787,7 @@
         
   
   <span class="md-ellipsis">
-    Cumulative beneficiaries
+    Ever-credited beneficiaries
   </span>
   
 
@@ -807,13 +807,13 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#cumulative-number-of-beneficiaries" class="md-nav__link">
+  <a href="#number-of-ever-credited-beneficiaries" class="md-nav__link">
     <span class="md-ellipsis">
-      Cumulative number of beneficiaries
+      Number of ever-credited beneficiaries
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Cumulative number of beneficiaries">
+    <nav class="md-nav" aria-label="Number of ever-credited beneficiaries">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -9796,13 +9796,13 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#cumulative-number-of-beneficiaries" class="md-nav__link">
+  <a href="#number-of-ever-credited-beneficiaries" class="md-nav__link">
     <span class="md-ellipsis">
-      Cumulative number of beneficiaries
+      Number of ever-credited beneficiaries
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Cumulative number of beneficiaries">
+    <nav class="md-nav" aria-label="Number of ever-credited beneficiaries">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -9882,19 +9882,26 @@
   
 
 
-  <h1>Cumulative beneficiaries</h1>
+  <h1>Ever-credited beneficiaries</h1>
 
-<h2 id="cumulative-number-of-beneficiaries">Cumulative number of beneficiaries</h2>
+<h2 id="number-of-ever-credited-beneficiaries">Number of ever-credited beneficiaries</h2>
 <h3 id="definition">Definition</h3>
-<p>Cumulative number of young people who have received a pass Culture credit, whether the credit is still active or not.</p>
+<p>Number of young people who have ever received a pass Culture credit, whether that credit is still active, exhausted, or expired.</p>
+<p>Reported as a <strong>stock at the end of each <code>partition_month</code></strong>, broken down by <code>age_at_calculation</code> (age reached at that month). This is not a true running total:</p>
+<ul>
+<li>A user only enters the stock from the month in which they first received a credit.</li>
+<li>A user's <code>age_at_calculation</code> is recomputed each month, so the same user appears in different age buckets across months as they age.</li>
+<li>A user leaves the stock if their account becomes inactive for any reason other than "suspension upon user request" (e.g. account deletion).</li>
+<li>Users with a <code>GRANT_FREE</code> deposit type are excluded.</li>
+</ul>
 <h3 id="source-table">Source table</h3>
 <p><a href="../../models/export/vidoc/description__exp_vidoc_beneficiary/">exp_vidoc_beneficiary</a></p>
 <h3 id="calculation">Calculation</h3>
 <p>Sum the <code>total_beneficiaries</code> column over the desired dimensions.</p>
 <div class="highlight"><pre><span></span><code><span class="k">SELECT</span>
 <span class="w">    </span><span class="n">partition_month</span><span class="p">,</span>
-<span class="w">    </span><span class="k">SUM</span><span class="p">(</span><span class="n">total_beneficiaries</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">cumulative_beneficiaries</span>
-<span class="k">FROM</span><span class="w"> </span><span class="n">exp_vidoc_beneficiary</span>
+<span class="w">    </span><span class="k">SUM</span><span class="p">(</span><span class="n">total_beneficiaries</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_ever_credited_beneficiaries</span>
+<span class="k">FROM</span><span class="w"> </span><span class="o">`</span><span class="n">beneficiary</span><span class="o">`</span>
 <span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">partition_month</span>
 <span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">partition_month</span>
 </code></pre></div>
