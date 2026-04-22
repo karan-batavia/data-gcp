@@ -9790,87 +9790,87 @@
 <tbody>
 <tr>
 <td style="text-align: left;">publication_id</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The unique identifier for the publication. Format varies by platform: numeric ID for Instagram, alphanumeric for TikTok.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_creation_date</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">DATE</td>
 <td style="text-align: left;">The date when the content was originally posted on the social media platform.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_caption</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The text content accompanying the publication, including hashtags, mentions, and emojis.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_link</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The permanent URL to access the publication directly on the social media platform.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_export_date</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">DATE</td>
 <td style="text-align: left;">The date when the publication's metrics were extracted from the platform.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_account_name</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The identifier of the account that posted the content, prefixed with the platform name (e.g., instagram_, tiktok_).</td>
 </tr>
 <tr>
 <td style="text-align: left;">is_publication_tagged</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">BOOLEAN</td>
 <td style="text-align: left;">Boolean indicator (TRUE/FALSE) showing whether the publication is part of a tracked campaign.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_reach</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The number of unique accounts that saw the publication at least once.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_video_views</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The total number of times the video content was played. Only applicable for video content.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_likes</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The number of unique accounts that liked the publication.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_shares</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The number of times the publication was shared by users to their stories or with other users.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_comments</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The total number of comments received on the publication.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_engagement_rate</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">FLOAT64</td>
 <td style="text-align: left;">The ratio of total interactions (likes + comments + shares) to reach.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_tag_post_name</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The unique identifier assigned to the publication for campaign tracking purposes.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_tag_macro_objective</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The high-level marketing goal of the publication.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_tag_micro_objective</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The specific marketing objective of the publication.</td>
 </tr>
 <tr>
 <td style="text-align: left;">publication_tag_offer_category</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The category of the offer associated with the publication.</td>
 </tr>
 <tr>
@@ -9885,57 +9885,57 @@
 </tr>
 <tr>
 <td style="text-align: left;">instagram_publication_media_type</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">STRING</td>
 <td style="text-align: left;">The format of the Instagram publication content. Possible values include: PHOTO, VIDEO, CAROUSEL_ALBUM</td>
 </tr>
 <tr>
 <td style="text-align: left;">instagram_publication_saved</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The number of times the publication was saved by users.</td>
 </tr>
 <tr>
 <td style="text-align: left;">total_instagram_publication_interactions</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The sum of all engagement actions on the publication, including: Likes, Comments, Shares, Saves, Video views (if applicable).</td>
 </tr>
 <tr>
 <td style="text-align: left;">instagram_publication_impressions</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The total number of times the publication was viewed.</td>
 </tr>
 <tr>
 <td style="text-align: left;">instagram_publication_follows</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The number of new followers acquired directly through this publication.</td>
 </tr>
 <tr>
 <td style="text-align: left;">instagram_publication_profile_visits</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The number of times users visited the profile after seeing this publication.</td>
 </tr>
 <tr>
 <td style="text-align: left;">instagram_publication_profile_activity</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The total number of actions taken on the profile from this publication, including: Website clicks, Email button clicks...</td>
 </tr>
 <tr>
 <td style="text-align: left;">average_tiktok_publication_time_watched</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">FLOAT64</td>
 <td style="text-align: left;">The average duration (in seconds) that viewers spent watching the video.</td>
 </tr>
 <tr>
 <td style="text-align: left;">total_tiktok_publication_time_watched</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">INT64</td>
 <td style="text-align: left;">The cumulative time (in seconds) spent by all viewers watching the video.</td>
 </tr>
 <tr>
 <td style="text-align: left;">tiktok_publication_video_duration</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">FLOAT64</td>
 <td style="text-align: left;">The total length of the video content in seconds.</td>
 </tr>
 <tr>
 <td style="text-align: left;">tiktok_publication_full_video_watched_rate</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">FLOAT64</td>
 <td style="text-align: left;">The percentage of viewers who watched the entire video from start to finish.</td>
 </tr>
 </tbody>

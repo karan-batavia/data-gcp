@@ -9894,25 +9894,55 @@
 <li><a href="../../models/export/vidoc/description__exp_vidoc_diversity/">exp_vidoc_diversity</a> — total expired-credit beneficiaries (denominator)</li>
 </ul>
 <h3 id="calculation">Calculation</h3>
-<p>The share is the ratio of <code>total_category_booked_beneficiaries</code> (per category) to <code>total_expired_credit_beneficiaries</code> (total), joined on the same expiration month and geographic dimensions.</p>
-<div class="highlight"><pre><span></span><code><span class="k">SELECT</span>
-<span class="w">    </span><span class="n">cat</span><span class="p">.</span><span class="n">deposit_expiration_month</span><span class="p">,</span>
-<span class="w">    </span><span class="n">cat</span><span class="p">.</span><span class="n">offer_category_id</span><span class="p">,</span>
-<span class="w">    </span><span class="k">SUM</span><span class="p">(</span><span class="n">cat</span><span class="p">.</span><span class="n">total_category_booked_beneficiaries</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">booked_in_category</span><span class="p">,</span>
-<span class="w">    </span><span class="k">SUM</span><span class="p">(</span><span class="n">div</span><span class="p">.</span><span class="n">total_expired_credit_beneficiaries</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_expired</span><span class="p">,</span>
-<span class="w">    </span><span class="n">SAFE_DIVIDE</span><span class="p">(</span>
-<span class="w">        </span><span class="k">SUM</span><span class="p">(</span><span class="n">cat</span><span class="p">.</span><span class="n">total_category_booked_beneficiaries</span><span class="p">),</span>
-<span class="w">        </span><span class="k">SUM</span><span class="p">(</span><span class="n">div</span><span class="p">.</span><span class="n">total_expired_credit_beneficiaries</span><span class="p">)</span>
-<span class="w">    </span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">category_booking_rate</span>
-<span class="k">FROM</span><span class="w"> </span><span class="o">`</span><span class="n">diversity_by_category</span><span class="o">`</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">cat</span>
-<span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="o">`</span><span class="n">diversity</span><span class="o">`</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">div</span>
-<span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">deposit_expiration_month</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">div</span><span class="p">.</span><span class="n">deposit_expiration_month</span>
-<span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">department_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">div</span><span class="p">.</span><span class="n">department_code</span>
-<span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">is_in_qpv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">div</span><span class="p">.</span><span class="n">is_in_qpv</span>
-<span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">macro_density_label</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">div</span><span class="p">.</span><span class="n">macro_density_label</span>
-<span class="w">    </span><span class="k">AND</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">micro_density_label</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">div</span><span class="p">.</span><span class="n">micro_density_label</span>
-<span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">offer_category_id</span>
-<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">cat</span><span class="p">.</span><span class="n">offer_category_id</span>
+<p>The share is the ratio of <code>total_category_booked_beneficiaries</code> (per category) to <code>total_expired_credit_beneficiaries</code> (total, <strong>independent of the category</strong>).</p>
+<p>Because the denominator is not category-specific, <strong>aggregate the numerator and the denominator separately</strong> before dividing:</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">numerator</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span>
+<span class="w">        </span><span class="n">deposit_expiration_month</span><span class="p">,</span>
+<span class="w">        </span><span class="n">offer_category_id</span><span class="p">,</span>
+<span class="w">        </span><span class="k">SUM</span><span class="p">(</span><span class="n">total_category_booked_beneficiaries</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">booked_in_category</span>
+<span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="o">`</span><span class="n">diversity_by_category</span><span class="o">`</span>
+<span class="w">    </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">offer_category_id</span>
+<span class="p">),</span>
+<span class="n">denominator</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span>
+<span class="w">        </span><span class="n">deposit_expiration_month</span><span class="p">,</span>
+<span class="w">        </span><span class="k">SUM</span><span class="p">(</span><span class="n">total_expired_credit_beneficiaries</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_expired</span>
+<span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="o">`</span><span class="n">diversity</span><span class="o">`</span>
+<span class="w">    </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">deposit_expiration_month</span>
+<span class="p">)</span>
+<span class="k">SELECT</span>
+<span class="w">    </span><span class="n">n</span><span class="p">.</span><span class="n">deposit_expiration_month</span><span class="p">,</span>
+<span class="w">    </span><span class="n">n</span><span class="p">.</span><span class="n">offer_category_id</span><span class="p">,</span>
+<span class="w">    </span><span class="n">n</span><span class="p">.</span><span class="n">booked_in_category</span><span class="p">,</span>
+<span class="w">    </span><span class="n">d</span><span class="p">.</span><span class="n">total_expired</span><span class="p">,</span>
+<span class="w">    </span><span class="n">SAFE_DIVIDE</span><span class="p">(</span><span class="n">n</span><span class="p">.</span><span class="n">booked_in_category</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">total_expired</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">category_booking_rate</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">numerator</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span>
+<span class="k">INNER</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">denominator</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">d</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">deposit_expiration_month</span><span class="p">)</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">offer_category_id</span>
+</code></pre></div>
+<blockquote>
+<p><strong>Do not</strong> join <code>diversity_by_category</code> to <code>diversity</code> on all geographic dimensions before summing: <code>diversity_by_category</code> has one row per <code>(cell, category present)</code>, so an <code>INNER JOIN</code> at the cell level silently drops from the denominator every cell where the category has zero bookings. The rate is then <strong>overestimated</strong>, especially for rare categories. Always aggregate each side to its natural grain first, then join.</p>
+</blockquote>
+<p>To compute the rate on a sub-group (e.g. per department, per QPV), add the grouping dimensions to both CTEs and join on them. Cross-join with the list of categories if you need to emit explicit zero-booking rows:</p>
+<div class="highlight"><pre><span></span><code><span class="k">WITH</span><span class="w"> </span><span class="n">denom</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">department_code</span><span class="p">,</span>
+<span class="w">           </span><span class="k">SUM</span><span class="p">(</span><span class="n">total_expired_credit_beneficiaries</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_expired</span>
+<span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="o">`</span><span class="n">diversity</span><span class="o">`</span>
+<span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">department_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;XX&#39;</span><span class="w"> </span><span class="c1">-- optional filter to a specific sub-group</span>
+<span class="w">    </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">department_code</span>
+<span class="p">),</span>
+<span class="n">num</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="k">SELECT</span><span class="w"> </span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">department_code</span><span class="p">,</span><span class="w"> </span><span class="n">offer_category_id</span><span class="p">,</span>
+<span class="w">           </span><span class="k">SUM</span><span class="p">(</span><span class="n">total_category_booked_beneficiaries</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">booked</span>
+<span class="w">    </span><span class="k">FROM</span><span class="w"> </span><span class="o">`</span><span class="n">diversity_by_category</span><span class="o">`</span>
+<span class="w">    </span><span class="k">WHERE</span><span class="w"> </span><span class="n">department_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;XX&#39;</span><span class="w"> </span><span class="c1">-- optional filter to a specific sub-group</span>
+<span class="w">    </span><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">department_code</span><span class="p">,</span><span class="w"> </span><span class="n">offer_category_id</span>
+<span class="p">)</span>
+<span class="k">SELECT</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">department_code</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">.</span><span class="n">offer_category_id</span><span class="p">,</span>
+<span class="w">       </span><span class="n">SAFE_DIVIDE</span><span class="p">(</span><span class="n">n</span><span class="p">.</span><span class="n">booked</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">total_expired</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">rate</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">denom</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">d</span>
+<span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">num</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">deposit_expiration_month</span><span class="p">,</span><span class="w"> </span><span class="n">department_code</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="available-dimensions">Available dimensions</h3>
 <table>
@@ -9964,7 +9994,12 @@
 <h3 id="temporal-tracking">Temporal tracking</h3>
 <p><strong>Quarterly.</strong> The <code>deposit_expiration_month</code> column indicates when the beneficiary's credit expired.</p>
 <h3 id="data-protection">Data protection</h3>
-<p>Counts are protected using the <a href="../../references/statistical_confidentiality/">Cell Key Perturbation method</a>. Both the per-category numerator and the denominator from <code>exp_vidoc_diversity</code> are perturbed independently.</p>
+<p>Counts are protected using the <a href="../../references/statistical_confidentiality/">Cell Key Perturbation method</a>. The numerator (<code>total_category_booked_beneficiaries</code>) and the denominator (<code>total_expired_credit_beneficiaries</code>) come from <strong>different cohorts of users</strong> and are therefore perturbed <strong>independently</strong> (different cell keys → independent noise). Consequences:</p>
+<ul>
+<li>On a single small cell, the ratio can be unstable (numerator and denominator each shifted by up to ±5).</li>
+<li>The invariant <code>booked_in_category ≤ total_expired</code> can be <strong>violated</strong> at the cell level after perturbation. Always aggregate over many cells (national, regional, quarterly) before computing a rate.</li>
+<li>For very rare categories, a rate computed at a fine geographic grain should be treated as indicative only.</li>
+</ul>
 
 
 

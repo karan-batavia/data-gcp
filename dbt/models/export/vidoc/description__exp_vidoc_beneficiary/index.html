@@ -9775,6 +9775,8 @@ It is designed to be exported to ministry for vidoc visualisation.</p>
 
 <h2 id="table-description">Table Description</h2>
 <p>Each row represents a key indicator calculated for a specific month, geographic aggregation and beneficiary dimensions level.</p>
+<p><strong>Grain</strong>: <code>partition_month</code>, <code>region_code</code>, <code>department_code</code>, <code>age_at_calculation</code>, <code>is_in_qpv</code>, <code>macro_density_label</code>, <code>micro_density_label</code>.</p>
+<p><code>total_actual_beneficiaries</code> is a subset of <code>total_beneficiaries</code> (active ⊂ ever-credited), but the two are perturbed independently — the invariant <code>total_actual ≤ total_beneficiaries</code> is only guaranteed after aggregation across many cells.</p>
 <table>
 <thead>
 <tr>

@@ -9949,7 +9949,12 @@
 <h3 id="temporal-tracking">Temporal tracking</h3>
 <p><strong>Quarterly.</strong> The <code>deposit_expiration_month</code> column indicates when the beneficiary's credit expired.</p>
 <h3 id="data-protection">Data protection</h3>
-<p>Both numerator and denominator are protected using the <a href="../../references/statistical_confidentiality/">Cell Key Perturbation method</a>. Rates computed on small cells may be slightly affected.</p>
+<p>Both columns are protected using the <a href="../../references/statistical_confidentiality/">Cell Key Perturbation method</a>. They correspond to <strong>nested cohorts</strong> (<code>3plus ⊂ expired</code>) but are perturbed <strong>independently</strong> (each column has its own cell key). Consequences:</p>
+<ul>
+<li>On a single small cell, the invariant <code>total_3plus_category_booked_beneficiaries ≤ total_expired_credit_beneficiaries</code> can be <strong>violated</strong> after perturbation.</li>
+<li>Always aggregate over many cells (national, regional, quarterly) before computing the rate; the law of large numbers brings the ratio back close to the true value.</li>
+<li>For the national/quarterly rate, the relative error is negligible.</li>
+</ul>
 
 
 

@@ -9727,7 +9727,13 @@
 
 <h1 id="metadata-related">Metadata related</h1>
 <p><strong>offer_type</strong>:  Deprecated. </p>
-<p><strong>offer_is_bookable</strong>:  Indicates if the offer is bookable (the offer has non expired and non depleted stock, and can thus still be booked by users in app). </p>
+<p><strong>offer_is_bookable</strong>: 
+Indicates if the offer is bookable.</p>
+<p>An offer is considered bookable if it meets the following criteria:
+1. <strong>Stock availability</strong>: The offer has non-expired and non-depleted stock.
+2. <strong>User access</strong>: It can be booked by users in the app.
+3. <strong>Offerer Validation</strong>: The offerer who created the offer must be officially validated.</p>
+
 <p><strong>offer_is_digital_goods</strong>:  Indicates if the offer includes digital goods. </p>
 <p><strong>offer_is_physical_goods</strong>:  Indicates if the offer includes physical goods. </p>
 <p><strong>offer_is_event</strong>:  Indicates if the offer is an event. </p>

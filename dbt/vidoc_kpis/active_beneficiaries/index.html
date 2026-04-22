@@ -9945,6 +9945,7 @@
 <p><strong>Quarterly.</strong> The <code>partition_month</code> column tracks changes over time.</p>
 <h3 id="data-protection">Data protection</h3>
 <p>Counts are protected using the <a href="../../references/statistical_confidentiality/">Cell Key Perturbation method</a>. Small counts are slightly modified; large counts and aggregated totals are virtually exact.</p>
+<p>Note: <code>total_actual_beneficiaries</code> and <code>total_beneficiaries</code> correspond to nested cohorts (active ⊂ ever-credited) but are perturbed <strong>independently</strong>. At the cell level, the invariant <code>total_actual_beneficiaries ≤ total_beneficiaries</code> can be violated after perturbation; aggregate over many cells before computing an "active share" ratio.</p>
 
 
 

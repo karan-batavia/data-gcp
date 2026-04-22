@@ -9775,6 +9775,10 @@ It is designed to be exported to ministry for vidoc visualisation.</p>
 
 <h2 id="table-description">Table Description</h2>
 <p>Each row represents a key indicator calculated for a specific month, geographic aggregation and beneficiary dimensions level.</p>
+<p><strong>Grain</strong>: <code>deposit_expiration_month</code>, <code>region_code</code>, <code>department_code</code>, <code>is_in_qpv</code>, <code>macro_density_label</code>, <code>micro_density_label</code>, <code>offer_category_id</code>.</p>
+<blockquote>
+<p>Rows are <strong>only emitted</strong> for <code>(cell, category)</code> pairs where at least one booking exists. Cells with zero bookings for a given category are <strong>absent</strong> from the table.</p>
+</blockquote>
 <table>
 <thead>
 <tr>

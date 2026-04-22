@@ -6989,6 +6989,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#impact-on-ratios-and-nested-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Impact on ratios and nested counts
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#parameters" class="md-nav__link">
     <span class="md-ellipsis">
       Parameters
@@ -9924,6 +9933,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#impact-on-ratios-and-nested-counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Impact on ratios and nested counts
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#parameters" class="md-nav__link">
     <span class="md-ellipsis">
       Parameters
@@ -10060,6 +10078,15 @@
 </tr>
 </tbody>
 </table>
+<h3 id="impact-on-ratios-and-nested-counts">Impact on ratios and nested counts</h3>
+<p>The cell-key method adds <strong>one perturbation per published count</strong>, based on that count's cell key. Two counts always have different cell keys unless they cover exactly the same set of individuals, so their perturbations are <strong>statistically independent</strong> — even when the underlying cohorts are nested (e.g. "users who booked 3+ categories" ⊂ "users whose credit expired"), or when one is a numerator and the other a denominator of the same rate.</p>
+<p>Practical consequences:</p>
+<ul>
+<li><strong>Nested invariants can break on a single cell.</strong> If cohort A ⊂ B, the raw counts satisfy <code>count(A) ≤ count(B)</code>, but after independent perturbation <code>count(A) + noise_A ≤ count(B) + noise_B</code> is not guaranteed on small cells.</li>
+<li><strong>Ratio noise does not cancel.</strong> A rate <code>count(A)/count(B)</code> gets independent noise on both sides, so per-cell ratios can be noticeably off on small cells.</li>
+<li><strong>Aggregation is the fix.</strong> Sum numerator and denominator each over many cells (national, regional, quarterly) before dividing — the <code>O(sqrt(N))</code> error on each sum becomes negligible relative to the sum.</li>
+<li><strong>Additive consistency is not guaranteed.</strong> <code>perturb(total) ≠ Σ perturb(sub-totals)</code>. Don't expect published breakdowns to sum exactly to a published total.</li>
+</ul>
 <h3 id="parameters">Parameters</h3>
 <table>
 <thead>
