@@ -41,10 +41,8 @@ class TestLoadArchivingConfig:
 
         config = load_archiving_config()
         assert "max_cards_to_archive" in config
-        assert "folders" in config
-        assert "rules" in config
-        assert isinstance(config["folders"], list)
-        assert isinstance(config["rules"], list)
+        assert "archiving_rules" in config
+        assert isinstance(config["archiving_rules"], dict)
 
 
 class TestAccessSecretData:

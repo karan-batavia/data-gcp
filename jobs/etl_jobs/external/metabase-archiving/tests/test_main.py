@@ -23,8 +23,7 @@ class TestArchiveCommand:
         self, mock_sleep, mock_config, runner, mock_metabase_client
     ):
         mock_config.return_value = {
-            "rules": [{"name": "thematic_archiving", "sql": "WHERE 1=1"}],
-            "folders": ["thematic"],
+            "archiving_rules": {"thematic": "WHERE 1=1"},
             "max_cards_to_archive": 2,
             "empty_collection_cleanup": {},
         }
@@ -58,10 +57,9 @@ class TestArchiveCommand:
         mock_move.save_logs_bq.assert_called_once()
 
     @patch("main.load_archiving_config")
-    def test_archive_no_rule_for_folder(self, mock_config, runner):
+    def test_archive_no_rules(self, mock_config, runner):
         mock_config.return_value = {
-            "rules": [],
-            "folders": ["unknown_folder"],
+            "archiving_rules": {},
             "max_cards_to_archive": 10,
             "empty_collection_cleanup": {},
         }
@@ -78,8 +76,7 @@ class TestArchiveCommand:
         self, mock_config, mock_dead, mock_empty, runner, mock_metabase_client
     ):
         mock_config.return_value = {
-            "rules": [],
-            "folders": [],
+            "archiving_rules": {},
             "max_cards_to_archive": 10,
             "empty_collection_cleanup": {"root_collection_ids": [608, 607]},
         }
@@ -94,8 +91,7 @@ class TestArchiveCommand:
     @patch("main.load_archiving_config")
     def test_archive_no_cleanup_config(self, mock_config, runner):
         mock_config.return_value = {
-            "rules": [],
-            "folders": [],
+            "archiving_rules": {},
             "max_cards_to_archive": 10,
         }
 
@@ -107,8 +103,7 @@ class TestArchiveCommand:
     @patch("main.load_archiving_config")
     def test_archive_empty_root_ids(self, mock_config, runner):
         mock_config.return_value = {
-            "rules": [],
-            "folders": [],
+            "archiving_rules": {},
             "max_cards_to_archive": 10,
             "empty_collection_cleanup": {"root_collection_ids": []},
         }
@@ -117,6 +112,43 @@ class TestArchiveCommand:
 
         result = runner.invoke(app, ["archive"])
         assert result.exit_code == 0
+
+    @patch("main.hard_archive_stale_cards")
+    @patch("main.load_archiving_config")
+    def test_archive_calls_hard_archive(
+        self, mock_config, mock_hard_archive, runner, mock_metabase_client
+    ):
+        mock_config.return_value = {
+            "archiving_rules": {},
+            "max_cards_to_archive": 10,
+            "hard_archive": {"days_in_archive": 60, "max_cards": 50},
+        }
+
+        from main import app
+
+        result = runner.invoke(app, ["archive"])
+        assert result.exit_code == 0
+        mock_hard_archive.assert_called_once_with(
+            mock_metabase_client.return_value,
+            days_in_archive=60,
+            max_cards=50,
+        )
+
+    @patch("main.hard_archive_stale_cards")
+    @patch("main.load_archiving_config")
+    def test_archive_skips_hard_archive_when_absent(
+        self, mock_config, mock_hard_archive, runner
+    ):
+        mock_config.return_value = {
+            "archiving_rules": {},
+            "max_cards_to_archive": 10,
+        }
+
+        from main import app
+
+        result = runner.invoke(app, ["archive"])
+        assert result.exit_code == 0
+        mock_hard_archive.assert_not_called()
 
 
 class TestPermissionsCommand:

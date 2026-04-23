@@ -9,6 +9,7 @@ from domain.archiving import (
     _is_dashboard_dead,
     archive_dead_dashboards,
     archive_empty_collections,
+    hard_archive_stale_cards,
 )
 
 
@@ -329,3 +330,60 @@ class TestArchiveEmptyCollections:
         metabase.get_collection_children.side_effect = side_effect
         result = archive_empty_collections(metabase, [100])
         assert result == []
+
+
+class TestHardArchiveStaleCards:
+    @patch("domain.archiving.pd.DataFrame.to_gbq")
+    @patch("domain.archiving.pd.read_gbq")
+    def test_archives_candidates(self, mock_read_gbq, mock_to_gbq, metabase):
+        mock_read_gbq.return_value = pd.DataFrame(
+            {"id": [1, 2], "last_archived_at": ["2024-01-01", "2024-01-02"]}
+        )
+        metabase.get_cards.side_effect = lambda _id: {
+            "archived": False,
+            "collection_id": 99,
+        }
+
+        result = hard_archive_stale_cards(metabase, days_in_archive=60, max_cards=50)
+
+        assert result == [1, 2]
+        assert metabase.put_card.call_count == 2
+        metabase.put_card.assert_any_call(1, {"archived": True})
+        metabase.put_card.assert_any_call(2, {"archived": True})
+        assert mock_to_gbq.call_count == 2
+
+    @patch("domain.archiving.pd.DataFrame.to_gbq")
+    @patch("domain.archiving.pd.read_gbq")
+    def test_skips_already_archived(self, mock_read_gbq, mock_to_gbq, metabase):
+        mock_read_gbq.return_value = pd.DataFrame(
+            {"id": [1], "last_archived_at": ["2024-01-01"]}
+        )
+        metabase.get_cards.return_value = {"archived": True, "collection_id": 99}
+
+        result = hard_archive_stale_cards(metabase, days_in_archive=60, max_cards=50)
+
+        assert result == []
+        metabase.put_card.assert_not_called()
+        mock_to_gbq.assert_not_called()
+
+    @patch("domain.archiving.pd.DataFrame.to_gbq")
+    @patch("domain.archiving.pd.read_gbq")
+    def test_no_candidates(self, mock_read_gbq, mock_to_gbq, metabase):
+        mock_read_gbq.return_value = pd.DataFrame({"id": [], "last_archived_at": []})
+
+        result = hard_archive_stale_cards(metabase, days_in_archive=60, max_cards=50)
+
+        assert result == []
+        metabase.put_card.assert_not_called()
+        mock_to_gbq.assert_not_called()
+
+    @patch("domain.archiving.pd.read_gbq")
+    def test_query_uses_config_params(self, mock_read_gbq, metabase):
+        mock_read_gbq.return_value = pd.DataFrame({"id": [], "last_archived_at": []})
+
+        hard_archive_stale_cards(metabase, days_in_archive=90, max_cards=25)
+
+        query = mock_read_gbq.call_args[0][0]
+        assert "int_metabase_dev.archiving_log" in query
+        assert "interval 90 day" in query
+        assert "LIMIT 25" in query

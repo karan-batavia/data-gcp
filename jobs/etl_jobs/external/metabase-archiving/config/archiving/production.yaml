@@ -1,0 +1,34 @@
+max_cards_to_archive: 50
+
+hard_archive:
+  days_in_archive: 60
+  max_cards: 50
+
+empty_collection_cleanup:
+  root_collection_ids:
+    - 608  # internal
+    - 607  # external
+    - 606  # operational
+    - 610  # archive
+
+archiving_rules:
+  thematic: |
+    WHERE
+      is_thematic_collection
+      AND total_views_6_months <= 5
+      AND date(card_creation_date) < date_sub(current_date(), interval 60 day)
+
+  operationnel: |
+    WHERE
+      parent_folder = 'operationnel'
+      AND days_since_last_execution >= 30
+      AND date(card_creation_date) < date_sub(current_date(), interval 14 day)
+
+  adhoc: |
+    WHERE
+      parent_folder = 'adhoc'
+      AND (
+        days_since_last_execution >= 90
+        OR total_views_6_months <= 5
+      )
+      AND date(card_creation_date) < date_sub(current_date(), interval 14 day)

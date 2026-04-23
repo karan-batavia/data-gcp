@@ -151,6 +151,61 @@ class MoveToArchive:
         logger.info("Logs saved to BQ for card %s", self.id)
 
 
+def hard_archive_stale_cards(metabase, days_in_archive, max_cards):
+    """Set archived=true on cards that have been in the archive folder
+    for more than `days_in_archive` days.
+
+    Uses `archiving_log.archived_at` as the source of truth. Cards moved
+    to the archive folder manually (not by this job) are out of scope.
+    """
+    query = f"""
+        SELECT id, MAX(archived_at) AS last_archived_at
+        FROM `{INT_METABASE_DATASET}.archiving_log`
+        WHERE status = 'success' AND object_type = 'card'
+        GROUP BY id
+        HAVING date(MAX(archived_at)) < date_sub(current_date(), interval {days_in_archive} day)
+        ORDER BY id
+        LIMIT {max_cards}
+    """
+    df = pd.read_gbq(query)
+    logger.info("%d card(s) candidate for hard-archive", len(df))
+
+    archived_ids = []
+    for card_id in df["id"].tolist():
+        card = metabase.get_cards(int(card_id))
+        if card.get("archived", False):
+            logger.debug("Card %s already hard-archived, skipping", card_id)
+            continue
+
+        metabase.put_card(int(card_id), {"archived": True})
+        archived_ids.append(int(card_id))
+        logger.info("Hard-archived card %s", card_id)
+
+        log_entry = {
+            "id": int(card_id),
+            "object_type": "card_hard_archive",
+            "status": "success",
+            "new_collection_id": card.get("collection_id"),
+            "previous_collection_id": card.get("collection_id"),
+            "archived_at": pd.Timestamp.now(),
+            "last_execution_date": None,
+            "last_execution_context": None,
+            "parent_folder": "archive",
+        }
+        pd.DataFrame([log_entry]).to_gbq(
+            f"{PROJECT_NAME}.{INT_METABASE_DATASET}.archiving_log",
+            project_id=PROJECT_NAME,
+            if_exists="append",
+        )
+
+    if archived_ids:
+        logger.info("Hard-archived %d card(s): %s", len(archived_ids), archived_ids)
+    else:
+        logger.info("No stale cards to hard-archive")
+
+    return archived_ids
+
+
 def archive_dead_dashboards(metabase, root_collection_ids):
     """Archive dashboards that are empty or contain only archived cards.
 

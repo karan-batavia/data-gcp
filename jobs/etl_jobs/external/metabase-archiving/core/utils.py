@@ -18,9 +18,25 @@ METABASE_API_USERNAME = "metabase-data-bot@passculture.app"
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 
+ARCHIVING_ENV_TO_CONFIG = {
+    "dev": "staging.yaml",
+    "stg": "staging.yaml",
+    "prod": "production.yaml",
+}
+
+
+def get_archiving_config_path():
+    """Resolve the archiving config file path based on ENV_SHORT_NAME."""
+    config_file = ARCHIVING_ENV_TO_CONFIG.get(ENVIRONMENT_SHORT_NAME)
+    if not config_file:
+        raise ValueError(
+            f"No archiving config for environment '{ENVIRONMENT_SHORT_NAME}'"
+        )
+    return CONFIG_DIR / "archiving" / config_file
+
 
 def load_archiving_config():
-    with open(CONFIG_DIR / "archiving.yaml") as f:
+    with open(get_archiving_config_path()) as f:
         return yaml.safe_load(f)
 
 

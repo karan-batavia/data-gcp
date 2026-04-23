@@ -16,6 +16,7 @@ from domain.archiving import (
     MoveToArchive,
     archive_dead_dashboards,
     archive_empty_collections,
+    hard_archive_stale_cards,
 )
 from domain.dependencies import run_dependencies
 from domain.permissions import sync_permissions
@@ -45,14 +46,7 @@ def archive():
     metabase = _get_metabase_client()
     config = load_archiving_config()
 
-    rules_by_name = {rule["name"]: rule["sql"] for rule in config["rules"]}
-
-    for folder in config["folders"]:
-        rule_sql = rules_by_name.get(f"{folder}_archiving")
-        if not rule_sql:
-            logger.warning("No archiving rule found for folder '%s'", folder)
-            continue
-
+    for folder, rule_sql in config.get("archiving_rules", {}).items():
         list_archive = ListArchive(metabase_folder=folder, rule_sql=rule_sql)
         list_archive.get_data_archiving()
         cards = list_archive.preprocess_data_archiving()
@@ -63,6 +57,15 @@ def archive():
             archiving.rename_archive_object()
             archiving.save_logs_bq(log_entry)
             time.sleep(1)
+
+    hard_archive_config = config.get("hard_archive", {})
+    if hard_archive_config:
+        logger.info("Hard-archiving cards stale in archive folder...")
+        hard_archive_stale_cards(
+            metabase,
+            days_in_archive=hard_archive_config["days_in_archive"],
+            max_cards=hard_archive_config["max_cards"],
+        )
 
     cleanup_config = config.get("empty_collection_cleanup", {})
     root_ids = cleanup_config.get("root_collection_ids", [])
