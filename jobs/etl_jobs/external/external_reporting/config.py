@@ -26,7 +26,7 @@ THREADS_SAFETY_MARGIN = 0.9  # to avoid using 100% of CPU cores
 WRITER_CONCURRENCY = (
     29  # Number of parallel worker threads for writing to Excel files (locked)
 )
-DATA_READER_PER_WRITER = 5  # Number of data reader threads per worker process
+DATA_READER_PER_WRITER = 1  # Number of data reader threads per worker process
 
 # Google Drive Configuration
 GOOGLE_DRIVE_ROOT_FOLDER_ID_MAPPING = {

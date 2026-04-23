@@ -54,7 +54,7 @@ with DAG(
     description="Data reporting export for ministère & DRAC",
     schedule_interval=get_airflow_schedule(SCHEDULE_DICT[dag_id].get(ENV_SHORT_NAME)),
     catchup=False,
-    dagrun_timeout=datetime.timedelta(minutes=60),
+    dagrun_timeout=datetime.timedelta(minutes=300),
     user_defined_macros=macros.default,
     template_searchpath=DAG_FOLDER,
     tags=[DAG_TAGS.DE.value],
@@ -108,7 +108,7 @@ with DAG(
 
     fetch_install_code = InstallDependenciesOperator(
         task_id="fetch_install_code",
-        instance_name=GCE_INSTANCE,
+        instance_name="{{ params.instance_name }}",
         branch="{{ params.branch }}",
         python_version="'3.10'",
         base_dir=BASE_PATH,
@@ -128,7 +128,7 @@ with DAG(
 
     gce_generate_quaterly_reports = SSHGCEOperator(
         task_id="gce_generate_quaterly_reports",
-        instance_name=GCE_INSTANCE,
+        instance_name="{{ params.instance_name }}",
         base_dir=BASE_PATH,
         environment=dag_config,
         command="python main.py generate --stakeholder all --ds {{ ds }} --concurrency 60",  # internally ajusted to 0.9 of CPU cores
@@ -138,7 +138,7 @@ with DAG(
 
     gce_generate_monthly_reports = SSHGCEOperator(
         task_id="gce_generate_monthly_reports",
-        instance_name=GCE_INSTANCE,
+        instance_name="{{ params.instance_name }}",
         base_dir=BASE_PATH,
         environment=dag_config,
         command="python main.py generate --stakeholder ministere --ds {{ ds }}",
@@ -148,7 +148,7 @@ with DAG(
 
     gce_compress_reports = SSHGCEOperator(
         task_id="gce_compress_reports",
-        instance_name=GCE_INSTANCE,
+        instance_name="{{ params.instance_name }}",
         base_dir=BASE_PATH,
         environment=dag_config,
         command="python main.py compress --ds {{ ds }}",  # add --clean flag after testing
@@ -159,7 +159,7 @@ with DAG(
 
     gce_export_to_gcs = SSHGCEOperator(
         task_id="gce_export_reports_to_gcs",
-        instance_name=GCE_INSTANCE,
+        instance_name="{{ params.instance_name }}",
         base_dir=BASE_PATH,
         environment=dag_config,
         command=f"python main.py upload --ds {{{{ ds }}}} --bucket {DE_BIGQUERY_DATA_EXPORT_BUCKET_NAME} --destination external_reporting",
@@ -169,7 +169,7 @@ with DAG(
 
     gce_export_to_drive = SSHGCEOperator(
         task_id="gce_export_reports_to_drive",
-        instance_name=GCE_INSTANCE,
+        instance_name="{{ params.instance_name }}",
         base_dir=BASE_PATH,
         environment=dag_config,
         command="python main.py upload-drive --ds {{ ds }}",
@@ -178,7 +178,7 @@ with DAG(
     )
 
     gce_instance_stop = DeleteGCEOperator(
-        task_id="gce_stop_task", instance_name=GCE_INSTANCE
+        task_id="gce_stop_task", instance_name="{{ params.instance_name }}"
     )
 
     (

@@ -70,53 +70,54 @@ def query_yearly_kpi(
     scope: str = "individual",
 ) -> pd.DataFrame:
     """
-    Query yearly KPI data.
-    - Individual: calendar year (Jan-Dec)
-    - Collective: scholar year (Sep-Aug)
+    Query yearly KPI data with a single range query, then assign year labels in Python.
+    - Individual: calendar year (Jan-Dec), year_label is int
+    - Collective: scholar year (Sep-Aug), year_label is "YYYY-YYYY+1"
+
+    Previously this fired one SQL query per year (N round-trips). The single range
+    query is equivalent but reduces DB load by N× (typically 6×).
     """
     if end_year is None:
         end_year = datetime.strptime(ds, "%Y-%m-%d").date().year
 
+    if scope == "individual":
+        start_date = date(start_year, 1, 1)
+        end_date_ = date(end_year, 12, 31)
+    else:  # collective: last scholar year ends Aug(end_year+1)
+        start_date = date(start_year, 9, 1)
+        end_date_ = date(end_year + 1, 8, 31)
+
+    where = [
+        "kpi_name = ?",
+        "dimension_name = ?",
+        "dimension_value = ?",
+        "partition_month >= ?",
+        "partition_month <= ?",
+    ]
+    params = [
+        kpi_name,
+        dimension_name,
+        dimension_value,
+        start_date.strftime("%Y-%m-%d"),
+        end_date_.strftime("%Y-%m-%d"),
+    ]
+
+    query = f"""
+        SELECT partition_month, kpi_name, numerator, denominator, kpi
+        FROM {table_name}
+        WHERE {" AND ".join(where)}
+        ORDER BY partition_month
+    """
+    log_print.debug(f"Executing query: {query} with params {params}")
+
     try:
-        all_data = []
-        for year in range(start_year, end_year + 1):
-            if scope == "individual":
-                start_date = date(year, 1, 1)
-                end_date_ = date(year, 12, 31)
-                year_label = year
-            else:  # collective scholar year
-                start_date = date(year, 9, 1)
-                end_date_ = date(year + 1, 8, 31)
-                year_label = f"{year}-{year+1}"
+        df = conn.cursor().execute(query, params).df()
+    except Exception as e:
+        raise QueryError(
+            f"Failed to query yearly KPI {kpi_name} for scope {scope}: {e}"
+        )
 
-            where = [
-                "kpi_name = ?",
-                "dimension_name = ?",
-                "partition_month >= ?",
-                "partition_month <=  ?",
-                "dimension_value = ?",
-            ]
-            params = [
-                kpi_name,
-                dimension_name,
-                start_date.strftime("%Y-%m-%d"),
-                end_date_.strftime("%Y-%m-%d"),
-                dimension_value,
-            ]
-
-            query = f"""
-                SELECT partition_month, kpi_name, numerator, denominator, kpi
-                FROM {table_name}
-                WHERE {" AND ".join(where)}
-                ORDER BY partition_month
-            """
-            log_print.debug(f"Executing query: {query} with params {params}")
-            df = conn.cursor().execute(query, params).df()
-            df["year_label"] = year_label
-            all_data.append(df)
-
-        if all_data:
-            return pd.concat(all_data, ignore_index=True)
+    if df.empty:
         return pd.DataFrame(
             columns=[
                 "partition_month",
@@ -128,10 +129,18 @@ def query_yearly_kpi(
             ]
         )
 
-    except Exception as e:
-        raise QueryError(
-            f"Failed to query yearly KPI {kpi_name} for scope {scope}: {e}"
+    df = df.copy()
+    df["partition_month"] = pd.to_datetime(df["partition_month"], errors="coerce")
+    df = df.dropna(subset=["partition_month"])
+
+    if scope == "individual":
+        df["year_label"] = df["partition_month"].dt.year
+    else:
+        df["year_label"] = df["partition_month"].apply(
+            lambda dt: f"{dt.year - 1}-{dt.year}" if dt.month < 9 else f"{dt.year}-{dt.year + 1}"
         )
+
+    return df
 
 
 def query_monthly_kpi(

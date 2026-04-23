@@ -32,20 +32,29 @@ def _fetch_kpi_with_own_connection(
     agg_type: str,
     context: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict]:
-    """Uses a thread-local DuckDB connection — one connection per thread, reused across KPI fetches."""
+    """Uses a thread-local DuckDB connection — one connection per thread, reused across KPI fetches.
+    On any DuckDB error the stale connection is closed and a fresh one is opened on the next call."""
     if not hasattr(_thread_local, "conn") or _thread_local.conn is None:
         _thread_local.conn = duckdb.connect(database=db_path, read_only=True, config={"threads": 1})
-    return DataService(_thread_local.conn).get_kpi_data(
-        kpi_name=kpi_name,
-        dimension_name=dimension_name,
-        dimension_value=dimension_value,
-        ds=ds,
-        scope=scope,
-        table_name=table_name,
-        select_field=select_field,
-        agg_type=agg_type,
-        context=context,
-    )
+    try:
+        return DataService(_thread_local.conn).get_kpi_data(
+            kpi_name=kpi_name,
+            dimension_name=dimension_name,
+            dimension_value=dimension_value,
+            ds=ds,
+            scope=scope,
+            table_name=table_name,
+            select_field=select_field,
+            agg_type=agg_type,
+            context=context,
+        )
+    except duckdb.Error:
+        try:
+            _thread_local.conn.close()
+        except Exception:
+            pass
+        _thread_local.conn = None
+        raise
 
 
 class ReportOrchestrationService:
@@ -407,10 +416,12 @@ class ReportOrchestrationService:
             )
 
             # Phase 2: Concurrent Fetching
-            # We use self.fetcher_concurrency (configured from main.py)
-            with concurrent.futures.ThreadPoolExecutor(
+            # Manual executor management so we can shutdown(wait=False) on timeout
+            # without blocking on stuck DuckDB threads.
+            executor = concurrent.futures.ThreadPoolExecutor(
                 max_workers=self.fetcher_concurrency
-            ) as executor:
+            )
+            try:
                 # Submit all tasks — each thread opens its own connection when db_path is set
                 if self.db_path:
                     future_to_config = {
@@ -448,80 +459,99 @@ class ReportOrchestrationService:
                     }
 
                 # Phase 3: Sequential Writing (as results arrive)
-                for future in concurrent.futures.as_completed(future_to_config):
-                    kpi_config = future_to_config[future]
-                    kpi_name = kpi_config["kpi_name"]
-                    writting_fail_count = 0
-                    no_data_count = 0
+                try:
+                    for future in concurrent.futures.as_completed(
+                        future_to_config, timeout=300
+                    ):  # 300s budget across all KPIs per sheet
+                        kpi_config = future_to_config[future]
+                        kpi_name = kpi_config["kpi_name"]
+                        writting_fail_count = 0
+                        no_data_count = 0
 
-                    try:
-                        kpi_data = future.result()
+                        try:
+                            kpi_data = future.result(timeout=60)  # 60s per individual KPI
 
-                        has_data = kpi_data and (
-                            kpi_data.get("yearly") or kpi_data.get("monthly")
-                        )
-
-                        if has_data:
-                            # Write data to Excel (Main thread / Synchronized by virtue of loop)
-                            write_success = ExcelWriterService.write_kpi_data_to_sheet(
-                                worksheet=sheet.worksheet,
-                                kpi_data=kpi_data,
-                                date_mappings=date_mappings,
-                                row_idx=kpi_config["row_idx"],
+                            has_data = kpi_data and (
+                                kpi_data.get("yearly") or kpi_data.get("monthly")
                             )
 
-                            if write_success:
-                                # Count how many values were actually written
-                                values_written = 0
-                                yearly_data = kpi_data.get("yearly", {})
-                                monthly_data = kpi_data.get("monthly", {})
-                                values_written = len(yearly_data) + len(monthly_data)
-
-                                kpi_result = KPIResult(
-                                    kpi_name=kpi_name,
-                                    status=KPIStatus.SUCCESS,
-                                    values_written=values_written,
-                                    total_cells=total_cells_per_kpi,
+                            if has_data:
+                                # Write data to Excel (Main thread / Synchronized by virtue of loop)
+                                write_success = ExcelWriterService.write_kpi_data_to_sheet(
+                                    worksheet=sheet.worksheet,
+                                    kpi_data=kpi_data,
+                                    date_mappings=date_mappings,
+                                    row_idx=kpi_config["row_idx"],
                                 )
+
+                                if write_success:
+                                    # Count how many values were actually written
+                                    values_written = 0
+                                    yearly_data = kpi_data.get("yearly", {})
+                                    monthly_data = kpi_data.get("monthly", {})
+                                    values_written = len(yearly_data) + len(monthly_data)
+
+                                    kpi_result = KPIResult(
+                                        kpi_name=kpi_name,
+                                        status=KPIStatus.SUCCESS,
+                                        values_written=values_written,
+                                        total_cells=total_cells_per_kpi,
+                                    )
+                                else:
+                                    kpi_result = KPIResult(
+                                        kpi_name=kpi_name,
+                                        status=KPIStatus.WRITE_FAILED,
+                                        values_written=0,
+                                        total_cells=total_cells_per_kpi,
+                                        error_message="Failed to write to Excel",
+                                    )
+                                    writting_fail_count += 1
+
+                                sheet_stats.add_kpi_result(kpi_result)
+
                             else:
                                 kpi_result = KPIResult(
                                     kpi_name=kpi_name,
-                                    status=KPIStatus.WRITE_FAILED,
+                                    status=KPIStatus.NO_DATA,
                                     values_written=0,
                                     total_cells=total_cells_per_kpi,
-                                    error_message="Failed to write to Excel",
+                                    error_message="No data returned from query",
                                 )
-                                writting_fail_count += 1
+                                sheet_stats.add_kpi_result(kpi_result)
+                                no_data_count += 1
 
-                            sheet_stats.add_kpi_result(kpi_result)
-
-                        else:
+                        except Exception as exc:
+                            log_print.warning(
+                                f"[{stakeholder_name}] [{report_name}] [{sheet.tab_name}] Failed to fetch data for KPI '{kpi_name}': {exc}"
+                            )
                             kpi_result = KPIResult(
                                 kpi_name=kpi_name,
-                                status=KPIStatus.NO_DATA,
-                                values_written=0,
-                                total_cells=total_cells_per_kpi,
-                                error_message="No data returned from query",
+                                status=KPIStatus.FAILED,
+                                error_message=str(exc),
                             )
                             sheet_stats.add_kpi_result(kpi_result)
-                            no_data_count += 1
 
-                    except Exception as exc:
-                        log_print.warning(
-                            f"[{stakeholder_name}] [{report_name}] [{sheet.tab_name}] Failed to fetch data for KPI '{kpi_name}': {exc}"
-                        )
-                        kpi_result = KPIResult(
-                            kpi_name=kpi_name,
-                            status=KPIStatus.FAILED,
-                            error_message=str(exc),
-                        )
-                        sheet_stats.add_kpi_result(kpi_result)
+                        if writting_fail_count + no_data_count > 0:
+                            log_print.debug(
+                                f"[{stakeholder_name}] [{report_name}] KPI issue for '{kpi_name}' in {sheet.tab_name}: "
+                                f"{writting_fail_count} write failures, {no_data_count} no data"
+                            )
 
-                    if writting_fail_count + no_data_count > 0:
-                        log_print.debug(
-                            f"[{stakeholder_name}] [{report_name}] KPI issue for '{kpi_name}' in {sheet.tab_name}: "
-                            f"{writting_fail_count} write failures, {no_data_count} no data"
-                        )
+                    executor.shutdown(wait=True)
+
+                except concurrent.futures.TimeoutError:
+                    # Don't wait=True here — stuck DuckDB threads can't be cancelled and
+                    # would block shutdown indefinitely. Let them finish in the background.
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    log_print.warning(
+                        f"[{stakeholder_name}] [{report_name}] [{sheet.tab_name}] KPI fetch timed out (300s) — sheet skipped"
+                    )
+
+            except Exception as e:
+                executor.shutdown(wait=False, cancel_futures=True)
+                log_print.warning(
+                    f"[{stakeholder_name}] [{report_name}] [{sheet.tab_name}] KPI data filling failed: {e}"
+                )
 
         except Exception as e:
             log_print.warning(

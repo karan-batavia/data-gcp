@@ -596,3 +596,4 @@ class ExportSession:
                 f"⚠ {table_name}: {len(indexes_failed)} indexes failed (table will still work)",
                 fg="yellow",
             )
+

@@ -1,5 +1,6 @@
 import concurrent.futures
 import os
+import signal
 import shutil
 import tempfile
 from pathlib import Path
@@ -220,29 +221,56 @@ def generate(
             # Execution Phase
             log_print.info(f"⚡ Processing {len(tasks)} reports...", fg="cyan")
 
-            with concurrent.futures.ProcessPoolExecutor(
-                max_workers=total_workers,
-            ) as executor:
-                future_to_task = {
-                    executor.submit(process_report_worker, task): task for task in tasks
-                }
+            executor = concurrent.futures.ProcessPoolExecutor(max_workers=total_workers)
+            future_to_task = {
+                executor.submit(process_report_worker, task): task for task in tasks
+            }
 
-                for future in concurrent.futures.as_completed(future_to_task):
+            try:
+                for future in concurrent.futures.as_completed(
+                    future_to_task, timeout=1800
+                ):  # 30 min global timeout
                     task = future_to_task[future]
                     try:
-                        stats = future.result(
-                            timeout=300
-                        )  # 5 minutes timeout per report result
-                        # Add stats to global stats using our new helper method
+                        stats = future.result()
                         global_stats.add_report_stats_to_stakeholder(
                             task["stakeholder_name"], task["stakeholder_type"], stats
                         )
-                    except concurrent.futures.TimeoutError:
-                        log_print.error(
-                            f"❌ Task timed out for {task.get('output_path')}", fg="red"
-                        )
                     except Exception as exc:
                         log_print.error(f"Task generated an exception: {exc}")
+            except concurrent.futures.TimeoutError:
+                log_print.error(
+                    "❌ Global timeout (1800s): some workers did not complete — terminating",
+                    fg="red",
+                )
+                pids = list((getattr(executor, "_processes", None) or {}).keys())
+                try:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                except Exception:
+                    pass
+                for pid in pids:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+            except KeyboardInterrupt:
+                log_print.warning("⚠️  Interrupted — terminating workers...", fg="yellow")
+                # Kill all workers immediately
+                pids = list((getattr(executor, "_processes", None) or {}).keys())
+                try:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                except Exception:
+                    pass
+                for pid in pids:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+                # Manually clean up temp dir since os._exit() skips context managers
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                # Bypass _python_exit atexit handler which would block waiting for the
+                # management thread to join workers — causing an apparent hang
+                os._exit(1)
 
             log_print.info(
                 f"✅ Reports generated successfully in {base_dir}", fg="green"
