@@ -1,6 +1,10 @@
+import threading
 from typing import Any, Dict, List, Optional
 
+import duckdb
 from duckdb import DuckDBPyConnection
+
+_thread_local = threading.local()
 
 from config import (
     AGG_TYPE_MAPPING,
@@ -16,11 +20,40 @@ from services.tracking import KPIResult, KPIStatus, SheetStats, TopResult, TopSt
 from utils.verbose_logger import log_print
 
 
+def _fetch_kpi_with_own_connection(
+    db_path: str,
+    kpi_name: str,
+    dimension_name: str,
+    dimension_value: str,
+    ds: str,
+    scope: str,
+    table_name: str,
+    select_field: str,
+    agg_type: str,
+    context: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict]:
+    """Uses a thread-local DuckDB connection — one connection per thread, reused across KPI fetches."""
+    if not hasattr(_thread_local, "conn") or _thread_local.conn is None:
+        _thread_local.conn = duckdb.connect(database=db_path, read_only=True, config={"threads": 1})
+    return DataService(_thread_local.conn).get_kpi_data(
+        kpi_name=kpi_name,
+        dimension_name=dimension_name,
+        dimension_value=dimension_value,
+        ds=ds,
+        scope=scope,
+        table_name=table_name,
+        select_field=select_field,
+        agg_type=agg_type,
+        context=context,
+    )
+
+
 class ReportOrchestrationService:
     """Orchestrates the complete report generation process with error handling."""
 
-    def __init__(self, duckdb_conn: DuckDBPyConnection, fetcher_concurrency: int = 2):
+    def __init__(self, duckdb_conn: DuckDBPyConnection, fetcher_concurrency: int = 2, db_path: Optional[str] = None):
         self.conn = duckdb_conn
+        self.db_path = db_path
         self.data_service = DataService(duckdb_conn)
         self.fetcher_concurrency = fetcher_concurrency
 
@@ -378,22 +411,41 @@ class ReportOrchestrationService:
             with concurrent.futures.ThreadPoolExecutor(
                 max_workers=self.fetcher_concurrency
             ) as executor:
-                # Submit all tasks
-                future_to_config = {
-                    executor.submit(
-                        self.data_service.get_kpi_data,
-                        kpi_name=config["kpi_name"],
-                        dimension_name=dimension_context["name"],
-                        dimension_value=dimension_context["value"],
-                        ds=ds,
-                        scope=scope,
-                        table_name=table_name,
-                        select_field=config["select_field"],
-                        agg_type=config["agg_type"],
-                        context=context,
-                    ): config
-                    for config in kpi_tasks
-                }
+                # Submit all tasks — each thread opens its own connection when db_path is set
+                if self.db_path:
+                    future_to_config = {
+                        executor.submit(
+                            _fetch_kpi_with_own_connection,
+                            self.db_path,
+                            config["kpi_name"],
+                            dimension_context["name"],
+                            dimension_context["value"],
+                            ds,
+                            scope,
+                            table_name,
+                            config["select_field"],
+                            config["agg_type"],
+                            context,
+                        ): config
+                        for config in kpi_tasks
+                    }
+                else:
+                    # Fallback for tests using mock connections (db_path not set)
+                    future_to_config = {
+                        executor.submit(
+                            self.data_service.get_kpi_data,
+                            kpi_name=config["kpi_name"],
+                            dimension_name=dimension_context["name"],
+                            dimension_value=dimension_context["value"],
+                            ds=ds,
+                            scope=scope,
+                            table_name=table_name,
+                            select_field=config["select_field"],
+                            agg_type=config["agg_type"],
+                            context=context,
+                        ): config
+                        for config in kpi_tasks
+                    }
 
                 # Phase 3: Sequential Writing (as results arrive)
                 for future in concurrent.futures.as_completed(future_to_config):

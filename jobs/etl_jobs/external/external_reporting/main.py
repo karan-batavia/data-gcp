@@ -144,10 +144,8 @@ def generate(
             log_print.info(f"💾 Loading data into temporary DB: {db_path}", fg="cyan")
             # Use ExportSession to load data
             # Note: we manually close session to release lock
-            session = ExportSession(ds, db_path=db_path)
-            session.load_data()
-            if session.conn:
-                session.conn.close()
+            with ExportSession(ds, db_path=db_path) as session:
+                session.load_data()
 
             # Explicitly collect garbage after loading large datasets
             import gc

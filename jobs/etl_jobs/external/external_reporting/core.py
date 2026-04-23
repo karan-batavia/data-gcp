@@ -252,6 +252,7 @@ class Report:
         ds: str,
         duckdb_conn: duckdb.DuckDBPyConnection,
         fetcher_concurrency: int,
+        db_path: Optional[str] = None,
     ) -> ReportStats:
         """
         Build the report workbook using the new service architecture.
@@ -283,7 +284,7 @@ class Report:
 
         # Step 2: Use ReportOrchestrationService for complex processing
         orchestrator = ReportOrchestrationService(
-            duckdb_conn, fetcher_concurrency=fetcher_concurrency
+            duckdb_conn, fetcher_concurrency=fetcher_concurrency, db_path=db_path
         )
         context = {
             "report_name": self.output_path.name,
@@ -429,7 +430,7 @@ def process_report_worker(task: Dict[str, Any]) -> ReportStats:
             # Build
             fetcher_concurrency = task.get("fetcher_concurrency", 2)
             report_stats = report.build(
-                task["ds"], conn, fetcher_concurrency=fetcher_concurrency
+                task["ds"], conn, fetcher_concurrency=fetcher_concurrency, db_path=str(task["db_path"])
             )
 
             # Save (overwrite self)
