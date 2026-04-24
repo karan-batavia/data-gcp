@@ -49,11 +49,11 @@ def make_pod_name(name: str) -> str:
 
 container_resources = V1ResourceRequirements(
     requests={
-        "cpu": "0.05",
+        "cpu": "0.2",
         "memory": "1Gi",
     },
     limits={
-        "cpu": "0.2",
+        "cpu": "0.5",
         "memory": "1Gi",
     },
 )
@@ -101,6 +101,7 @@ with DAG(
             get_logs=True,
             is_delete_operator_pod=True,
             in_cluster=True,
+            image_pull_policy="Always" if ENV_SHORT_NAME == "dev" else "IfNotPresent",
             env_vars={
                 "GCP_PROJECT_ID": GCP_PROJECT_ID,
                 "ENV_SHORT_NAME": ENV_SHORT_NAME,
