@@ -5,8 +5,6 @@ from airflow import DAG
 from airflow.models import Param
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from common import macros
-
-# from kubernetes.client import V1Toleration
 from common.callback import on_failure_vm_callback
 from common.config import (
     DAG_FOLDER,
@@ -51,10 +49,11 @@ def make_pod_name(name: str) -> str:
 
 container_resources = V1ResourceRequirements(
     requests={
-        "cpu": "1",
+        "cpu": "0.05",
         "memory": "1Gi",
     },
     limits={
+        "cpu": "0.2",
         "memory": "1Gi",
     },
 )
@@ -85,11 +84,11 @@ with DAG(
             description="Offset in days from the execution date for the end date (e.g., 0 for the execution date, -1 for yesterday).",
         ),
     },
-    tags=[DAG_TAGS.DE.value, DAG_TAGS.VM.value],
+    tags=[DAG_TAGS.DE.value, DAG_TAGS.POD.value],
 ):
-    for social_network in ["instagram"]:
+    for social_network in ["instagram", "tiktok"]:
         task = KubernetesPodOperator(
-            task_id=f"run_{social_network}_etl",
+            task_id=f"{social_network}_etl",
             name=make_pod_name(f"{social_network}"),
             namespace=namespace,
             image=f"{REGISTRY}/{image_prefix}/{social_network}:{{{{ params.image_tag }}}}",
@@ -100,13 +99,14 @@ with DAG(
                 "{% set base = yesterday() if dag_run.run_type == 'manual' else ds %}{{ add_days(base, params.n_index) }}",
             ],
             get_logs=True,
-            is_delete_operator_pod=False,
+            is_delete_operator_pod=True,
             in_cluster=True,
             env_vars={
                 "GCP_PROJECT_ID": GCP_PROJECT_ID,
                 "ENV_SHORT_NAME": ENV_SHORT_NAME,
             },
-            labels={"dag": DAG_NAME, "task": f"run_{social_network}_etl"},
+            # airflow already adds dag_id and task_id as labels
+            # labels={"airflow_dag": DAG_NAME, "airflow_task": f"run_{social_network}_etl"},
             service_account_name="airflow-worker",
             container_resources=container_resources,
         )

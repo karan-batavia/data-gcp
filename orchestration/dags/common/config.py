@@ -236,6 +236,7 @@ class DAG_TAGS(Enum):
     DS = "DS"
     DE = "DE"
     VM = "VM"
+    POD = "POD"
     DBT = "DBT"
     INCREMENTAL = "INCREMENTAL"
     POC = "POC"
