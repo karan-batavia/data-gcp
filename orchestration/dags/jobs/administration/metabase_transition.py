@@ -86,7 +86,7 @@ with DAG(
         task_id="fetch_install_code",
         instance_name=GCE_INSTANCE,
         branch="{{ params.branch }}",
-        python_version="3.9",
+        python_version="3.13",
         base_dir=BASE_PATH,
         dag=dag,
         retries=2,
@@ -98,12 +98,12 @@ with DAG(
         base_dir=BASE_PATH,
         environment=dag_config,
         command="""
-        python main.py migrate \
-        --database-name {{ params.database_name }} \
-        --legacy-table-name {{ params.legacy_table_name }} \
-        --new-table-name {{ params.new_table_name }} \
-        --legacy-schema-name {{ params.legacy_schema_name }} \
-        --new-schema-name {{ params.new_schema_name }} \
+        uv run python main.py migrate \
+        --database-name "{{ params.database_name }}" \
+        --legacy-table-name "{{ params.legacy_table_name }}" \
+        --new-table-name "{{ params.new_table_name }}" \
+        --legacy-schema-name "{{ params.legacy_schema_name }}" \
+        --new-schema-name "{{ params.new_schema_name }}" \
         {% if params.dry_run %}--dry-run{% endif %}
         """,
     )
